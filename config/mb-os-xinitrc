@@ -13,6 +13,17 @@ xhost +local:mbuser || xhost +local: || true
 # Set German keyboard layout
 setxkbmap de || true
 
+# Set mouse cursor theme (WICHTIG!)
+export XCURSOR_THEME=DMZ-White
+export XCURSOR_SIZE=24
+xsetroot -cursor_name left_ptr 2>/dev/null || true
+
+# Write cursor config for mbuser
+mkdir -p /home/mbuser
+echo 'Xcursor.theme: DMZ-White' > /home/mbuser/.Xresources
+echo 'Xcursor.size: 24' >> /home/mbuser/.Xresources
+chown mbuser:mbuser /home/mbuser/.Xresources 2>/dev/null || true
+
 # DHCP fallback (in case systemd-networkd didn't match the interface)
 dhclient -nw 2>/dev/null || true
 
@@ -34,10 +45,10 @@ if [ -f /home/mbuser/.Xresources ]; then
 fi
 
 # Start the Openbox window manager in the background as mbuser
-runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" openbox &
+runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" openbox &
 
 # Start our custom Qt 6 Desktop Shell as mbuser (blocking)
-exec runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell
+exec runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell
 
 
 

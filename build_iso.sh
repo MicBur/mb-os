@@ -81,6 +81,37 @@ sudo mkdir -p "$ROOTFS/etc/mb-os"
 sudo cp "$PROJECT_DIR/config/mb-os-xinitrc" "$ROOTFS/etc/mb-os/mb-os-xinitrc"
 sudo chmod +x "$ROOTFS/etc/mb-os/mb-os-xinitrc"
 
+# System-wide cursor theme (KRITISCH für sichtbaren Mauszeiger!)
+sudo mkdir -p "$ROOTFS/usr/share/icons/default"
+sudo tee "$ROOTFS/usr/share/icons/default/index.theme" > /dev/null << 'EOF'
+[Icon Theme]
+Name=Default
+Comment=Default Cursor Theme
+Inherits=DMZ-White
+EOF
+
+# X11 default cursor
+sudo mkdir -p "$ROOTFS/etc/X11/Xresources"
+echo 'Xcursor.theme: DMZ-White' | sudo tee "$ROOTFS/etc/X11/Xresources/x11-cursor" > /dev/null
+echo 'Xcursor.size: 24' | sudo tee -a "$ROOTFS/etc/X11/Xresources/x11-cursor" > /dev/null
+
+# GTK cursor
+sudo mkdir -p "$ROOTFS/etc/gtk-3.0"
+sudo tee "$ROOTFS/etc/gtk-3.0/settings.ini" > /dev/null << 'EOF'
+[Settings]
+gtk-cursor-theme-name=DMZ-White
+gtk-cursor-theme-size=24
+EOF
+
+# Environment.d for all sessions
+sudo mkdir -p "$ROOTFS/etc/environment.d"
+echo 'XCURSOR_THEME=DMZ-White' | sudo tee "$ROOTFS/etc/environment.d/99-cursor.conf" > /dev/null
+echo 'XCURSOR_SIZE=24' | sudo tee -a "$ROOTFS/etc/environment.d/99-cursor.conf" > /dev/null
+
+# Also write to /etc/environment for login shells
+echo 'XCURSOR_THEME=DMZ-White' | sudo tee -a "$ROOTFS/etc/environment" > /dev/null
+echo 'XCURSOR_SIZE=24' | sudo tee -a "$ROOTFS/etc/environment" > /dev/null
+
 # Generate and copy custom boot logo watermark for Plymouth
 python3 "$PROJECT_DIR/config/generate_logo.py"
 sudo mkdir -p "$ROOTFS/usr/share/plymouth/themes/spinner"
@@ -266,7 +297,9 @@ apt-get install -y --no-install-recommends \
     flatpak \
     lxpolkit \
     dmz-cursor-theme \
-    firefox
+    firefox \
+    os-prober \
+    ntfs-3g-dev
 
 # GPU Driver Auto-Detection (runs on first boot, not in ISO)
 # Keeps ISO small — installs NVIDIA/CUDA only when RTX hardware is detected
@@ -334,12 +367,17 @@ pip3 install --break-system-packages openvino onnxruntime 2>&1 || \
     pip3 install openvino onnxruntime 2>&1 || \
     echo "⚠ OpenVINO/ONNX pip install fehlgeschlagen"
 
-# Install Node.js 20 LTS from NodeSource
+# Install Node.js 20 LTS from NodeSource (with timeout)
 mkdir -p /etc/apt/keyrings
-curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key | gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg
-echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
-apt-get update -qq
-apt-get install -y --no-install-recommends nodejs
+timeout 15 curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key 2>/dev/null | timeout 10 gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg 2>/dev/null || true
+if [ -f /etc/apt/keyrings/nodesource.gpg ]; then
+    echo "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_20.x nodistro main" > /etc/apt/sources.list.d/nodesource.list
+    apt-get update -qq 2>/dev/null || true
+    apt-get install -y --no-install-recommends nodejs 2>/dev/null || true
+else
+    echo ">>> NodeSource GPG failed, installing nodejs from Ubuntu repos..."
+    apt-get install -y --no-install-recommends nodejs npm 2>/dev/null || true
+fi
 
 # Install Antigravity 2.0 — Gemini CLI
 npm install -g @google/gemini-cli 2>&1 || true
@@ -579,20 +617,29 @@ nameserver 1.1.1.1
 RESOLV
 
 # Enable systemd services
-systemctl enable systemd-networkd
-systemctl enable tor
-systemctl enable ssh
-systemctl enable xrdp
-systemctl enable mb-memory-daemon.service
-systemctl enable mb-os-gui.service
-systemctl enable NetworkManager
-systemctl enable udisks2
-systemctl enable acpid
-systemctl enable avahi-daemon
-systemctl enable cups
-systemctl enable bluetooth
-systemctl enable systemd-timesyncd
-systemctl set-default graphical.target
+systemctl enable systemd-networkd || true
+systemctl enable tor || true
+systemctl enable ssh || true
+systemctl enable xrdp || true
+systemctl enable mb-memory-daemon.service || true
+systemctl enable mb-os-gui.service || true
+systemctl enable NetworkManager || true
+systemctl enable udisks2 || true
+systemctl enable acpid || true
+systemctl enable avahi-daemon || true
+systemctl enable cups || true
+systemctl enable bluetooth || true
+systemctl enable systemd-timesyncd || true
+systemctl set-default graphical.target || true
+
+# Manual symlink fallback (chroot systemctl is unreliable!)
+mkdir -p /etc/systemd/system/graphical.target.wants
+ln -sf /etc/systemd/system/mb-os-gui.service /etc/systemd/system/graphical.target.wants/mb-os-gui.service 2>/dev/null || true
+ln -sf /etc/systemd/system/mb-memory-daemon.service /etc/systemd/system/multi-user.target.wants/mb-memory-daemon.service 2>/dev/null || true
+ln -sf /lib/systemd/system/NetworkManager.service /etc/systemd/system/multi-user.target.wants/NetworkManager.service 2>/dev/null || true
+ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service 2>/dev/null || true
+rm -f /etc/systemd/system/default.target
+ln -sf /lib/systemd/system/graphical.target /etc/systemd/system/default.target
 
 # Firewall: SSH + xrdp erlauben, rest blocken
 ufw default deny incoming
