@@ -1024,9 +1024,18 @@ AUTOCONF
 # GUI Auto-Start aus .profile
 sudo mkdir -p "$ROOTFS/home/mbuser"
 sudo tee "$ROOTFS/home/mbuser/.profile" > /dev/null << 'XPROFILE'
-# Starte GUI automatisch auf tty1
-if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
-    exec sudo /usr/bin/xinit /etc/mb-os/mb-os-xinitrc -- -keeptty vt1 2>/dev/null
+# Starte GUI automatisch auf tty1 (mit Loop-Schutz)
+if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ] && [ ! -f /tmp/.mb-gui-started ]; then
+    touch /tmp/.mb-gui-started
+    echo ">>> MB-OS GUI startet..." > /tmp/mb-gui.log 2>&1
+    sudo /usr/bin/xinit /etc/mb-os/mb-os-xinitrc -- :0 vt1 -keeptty >> /tmp/mb-gui.log 2>&1
+    echo ">>> xinit beendet mit Code: \$?" >> /tmp/mb-gui.log 2>&1
+    # Bei Fehler: nicht loopen, Shell offen lassen
+    echo ""
+    echo "  GUI konnte nicht gestartet werden."
+    echo "  Log: cat /tmp/mb-gui.log"
+    echo "  Neustart: rm /tmp/.mb-gui-started && startx"
+    echo ""
 fi
 XPROFILE
 sudo chown -R 1000:1000 "$ROOTFS/home/mbuser" 2>/dev/null || true
