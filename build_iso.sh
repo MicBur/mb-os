@@ -2,7 +2,7 @@
 set -e
 
 # Configuration
-WORKSPACE="/tmp/mb-os-build"
+WORKSPACE="/var/mb-os-build"
 ROOTFS="$WORKSPACE/rootfs"
 ISO_DIR="$WORKSPACE/iso"
 PROJECT_DIR="$(pwd)"
@@ -277,7 +277,8 @@ apt-get install -y --no-install-recommends \
     locales \
     bluez \
     bluez-tools \
-    policykit-1 \
+    polkitd \
+    pkexec \
     acpi \
     acpid \
     pm-utils \
