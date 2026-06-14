@@ -1011,12 +1011,12 @@ set color_normal=light-cyan/black
 set color_highlight=white/blue
 
 menuentry "  MB-OS - Starten  " {
-    linux /casper/vmlinuz boot=casper hostname=MB-OS nomodeset video=hyperv_fb:1920x1080 console=tty1 console=ttyS0 systemd.journald.forward_to_console=1 ---
+    linux /casper/vmlinuz boot=casper username=mbuser hostname=MB-OS nomodeset video=hyperv_fb:1920x1080 console=tty1 console=ttyS0 systemd.journald.forward_to_console=1 ---
     initrd /casper/initrd.img
 }
 
 menuentry "  MB-OS - Abgesicherter Modus  " {
-    linux /casper/vmlinuz boot=casper hostname=MB-OS nomodeset single console=tty1 ---
+    linux /casper/vmlinuz boot=casper username=mbuser hostname=MB-OS nomodeset single console=tty1 ---
     initrd /casper/initrd.img
 }
 
@@ -1025,14 +1025,15 @@ menuentry "  Speichertest (memtest86+)  " {
 }
 EOF
 
-# 9. Build the bootable ISO (write to /tmp to avoid NTFS/Hyper-V locks)
+# 9. Build the bootable ISO (free rootfs first to make space in /tmp)
 echo ">>> Generating bootable ISO image..."
+rm -rf "$ROOTFS"
 TEMP_ISO="/tmp/mb-os-output.iso"
 sudo grub-mkrescue -o "$TEMP_ISO" "$ISO_DIR"
 
 # Copy to project directory
 echo ">>> Copying ISO to project directory..."
-cp -f "$TEMP_ISO" "$OUTPUT_ISO" 2>/dev/null || sudo cp -f "$TEMP_ISO" "$OUTPUT_ISO"
+sudo cp -f "$TEMP_ISO" "$OUTPUT_ISO" 2>/dev/null || cp -f "$TEMP_ISO" "$OUTPUT_ISO"
 rm -f "$TEMP_ISO"
 
 echo "=== MB-OS Build Complete! ISO available at: $OUTPUT_ISO ==="
