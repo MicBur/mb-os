@@ -1022,13 +1022,14 @@ ExecStart=-/sbin/agetty --autologin mbuser --noclear %I $TERM
 AUTOCONF
 
 # GUI Auto-Start aus .profile
+sudo mkdir -p "$ROOTFS/home/mbuser"
 sudo tee "$ROOTFS/home/mbuser/.profile" > /dev/null << 'XPROFILE'
 # Starte GUI automatisch auf tty1
 if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
     exec sudo /usr/bin/xinit /etc/mb-os/mb-os-xinitrc -- -keeptty vt1 2>/dev/null
 fi
 XPROFILE
-sudo chown 1000:1000 "$ROOTFS/home/mbuser/.profile"
+sudo chown -R 1000:1000 "$ROOTFS/home/mbuser" 2>/dev/null || true
 
 echo ">>> Configs geschrieben: casper.conf=mbuser, autologin, .profile=xinit"
 
