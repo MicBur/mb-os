@@ -485,6 +485,32 @@ mkdir -p /etc/sudoers.d
 echo 'mbuser ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/mbuser
 chmod 0440 /etc/sudoers.d/mbuser
 
+# Casper Live-System Konfiguration (KRITISCH!)
+cat > /etc/casper.conf << 'CASPERCONF'
+# MB-OS Casper Configuration
+export USERNAME="mbuser"
+export USERFULLNAME="MB-OS User"
+export HOST="MB-OS"
+export BUILD_SYSTEM="Ubuntu"
+CASPERCONF
+
+# Auto-Login auf tty1 für Live-Session
+mkdir -p /etc/systemd/system/getty@tty1.service.d
+cat > /etc/systemd/system/getty@tty1.service.d/autologin.conf << 'AUTOCONF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin mbuser --noclear %I $TERM
+AUTOCONF
+
+# Auto-Start GUI wenn auf tty1 eingeloggt (Live + installiert)
+cat > /home/mbuser/.profile << 'PROFILE'
+# Starte GUI automatisch auf tty1
+if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
+    exec sudo /usr/bin/xinit /etc/mb-os/mb-os-xinitrc -- -keeptty vt1 2>/dev/null
+fi
+PROFILE
+chown mbuser:mbuser /home/mbuser/.profile
+
 # Create cache directory for Qt/WebEngine shader cache
 mkdir -p /home/mbuser/.cache
 chown mbuser:mbuser /home/mbuser/.cache
