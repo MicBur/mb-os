@@ -1025,11 +1025,11 @@ AUTOCONF
 sudo mkdir -p "$ROOTFS/home/mbuser"
 sudo tee "$ROOTFS/home/mbuser/.profile" > /dev/null << 'XPROFILE'
 # Starte GUI automatisch auf tty1 (mit Loop-Schutz)
-if [ -z "\$DISPLAY" ] && [ "\$(tty)" = "/dev/tty1" ] && [ ! -f /tmp/.mb-gui-started ]; then
+if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ] && [ ! -f /tmp/.mb-gui-started ]; then
     touch /tmp/.mb-gui-started
     echo ">>> MB-OS GUI startet..." > /tmp/mb-gui.log 2>&1
     sudo /usr/bin/xinit /etc/mb-os/mb-os-xinitrc -- :0 vt1 -keeptty >> /tmp/mb-gui.log 2>&1
-    echo ">>> xinit beendet mit Code: \$?" >> /tmp/mb-gui.log 2>&1
+    echo ">>> xinit beendet mit Code: $?" >> /tmp/mb-gui.log 2>&1
     # Bei Fehler: nicht loopen, Shell offen lassen
     echo ""
     echo "  GUI konnte nicht gestartet werden."
