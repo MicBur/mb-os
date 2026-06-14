@@ -46,9 +46,19 @@ fi
 
 # Start the Openbox window manager in the background as mbuser
 runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" openbox &
+OPENBOX_PID=$!
 
-# Start our custom Qt 6 Desktop Shell as mbuser (blocking)
-exec runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell
+# Start our custom Qt 6 Desktop Shell as mbuser
+runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell 2>/tmp/mb-shell-error.log
 
+# FALLBACK: Wenn mb-os-shell crasht, Desktop trotzdem nutzbar halten
+echo ">>> mb-os-shell beendet (Code: $?), starte Fallback-Desktop..." >> /tmp/mb-gui.log
+cat /tmp/mb-shell-error.log >> /tmp/mb-gui.log 2>/dev/null
 
+# PCManFM als Desktop + xterm als Terminal
+runuser -u mbuser -- env DISPLAY="$DISPLAY" HOME="/home/mbuser" pcmanfm --desktop &
+runuser -u mbuser -- env DISPLAY="$DISPLAY" HOME="/home/mbuser" xterm -fa "Monospace" -fs 14 -bg "#0a0c16" -fg "#00ffcc" -T "MB-OS Terminal" -e bash -c "echo '=== MB-OS Fallback Desktop ==='; echo 'mb-os-shell konnte nicht starten (Qt Version?).'; echo 'Log: cat /tmp/mb-shell-error.log'; echo ''; exec bash" &
+
+# Warte auf Openbox (hält den Desktop am Leben)
+wait $OPENBOX_PID
 
