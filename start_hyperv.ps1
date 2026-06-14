@@ -2,7 +2,7 @@
 # MUSS ALS ADMIN AUSGEFÜHRT WERDEN!
 
 $VMName = "MB-OS"
-$ISOPath = "D:\MB-OS\mb-os-v6.iso"
+$ISOPath = "D:\MB-OS\mb-os-v7.iso"
 $VHDPath = "D:\MB-OS-Install.vhdx"
 $VHDSize = 20GB
 

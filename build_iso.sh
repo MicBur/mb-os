@@ -57,7 +57,7 @@ mkdir -p "$ISO_DIR/boot/grub"
 # 4. Bootstrap minimal Ubuntu system
 if [ ! -d "$ROOTFS/etc" ]; then
     echo ">>> Bootstrapping minimal Ubuntu Noble system..."
-    sudo debootstrap --variant=minbase noble "$ROOTFS" http://archive.ubuntu.com/ubuntu/
+    sudo debootstrap --variant=minbase resolute "$ROOTFS" http://archive.ubuntu.com/ubuntu/
 else
     echo ">>> Reusing existing bootstrapped rootfs at $ROOTFS"
 fi
@@ -158,9 +158,9 @@ EOF
 
 # Setup standard repository list inside rootfs
 sudo tee "$ROOTFS/etc/apt/sources.list" > /dev/null << 'EOF'
-deb http://archive.ubuntu.com/ubuntu/ noble main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu/ noble-updates main restricted universe multiverse
-deb http://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ resolute main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ resolute-updates main restricted universe multiverse
+deb http://archive.ubuntu.com/ubuntu/ resolute-security main restricted universe multiverse
 EOF
 
 # 6. Mount filesystem helper and configure inside chroot
@@ -584,14 +584,14 @@ HOME_URL="https://github.com/user/mb-os"
 SUPPORT_URL="https://github.com/user/mb-os"
 BUG_REPORT_URL="https://github.com/user/mb-os"
 PRIVACY_POLICY_URL="https://github.com/user/mb-os"
-VERSION_CODENAME=noble
-UBUNTU_CODENAME=noble
+VERSION_CODENAME=resolute
+UBUNTU_CODENAME=resolute
 OSRELEASE
 
 cat > /etc/lsb-release << 'LSBRELEASE'
 DISTRIB_ID=MB-OS
 DISTRIB_RELEASE=1.0
-DISTRIB_CODENAME=noble
+DISTRIB_CODENAME=resolute
 DISTRIB_DESCRIPTION="MB-OS 1.0"
 LSBRELEASE
 
