@@ -998,6 +998,40 @@ sudo cp "$KERNEL_FILE" "$ISO_DIR/casper/vmlinuz"
 sudo cp "$INITRD_FILE" "$ISO_DIR/casper/initrd.img"
 
 echo ">>> Compressing filesystem into SquashFS..."
+
+# ============================================================
+# KRITISCH: Configs NACH chroot direkt ins rootfs schreiben
+# (chroot kann diese nicht mehr überschreiben!)
+# ============================================================
+
+# Casper: User = mbuser
+sudo tee "$ROOTFS/etc/casper.conf" > /dev/null << 'CASPERCONF'
+export USERNAME="mbuser"
+export USERFULLNAME="MB-OS User"
+export HOST="MB-OS"
+export BUILD_SYSTEM="Ubuntu"
+export FLAVOUR="MB-OS"
+CASPERCONF
+
+# Auto-Login auf tty1
+sudo mkdir -p "$ROOTFS/etc/systemd/system/getty@tty1.service.d"
+sudo tee "$ROOTFS/etc/systemd/system/getty@tty1.service.d/autologin.conf" > /dev/null << 'AUTOCONF'
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin mbuser --noclear %I $TERM
+AUTOCONF
+
+# GUI Auto-Start aus .profile
+sudo tee "$ROOTFS/home/mbuser/.profile" > /dev/null << 'XPROFILE'
+# Starte GUI automatisch auf tty1
+if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
+    exec sudo /usr/bin/xinit /etc/mb-os/mb-os-xinitrc -- -keeptty vt1 2>/dev/null
+fi
+XPROFILE
+sudo chown 1000:1000 "$ROOTFS/home/mbuser/.profile"
+
+echo ">>> Configs geschrieben: casper.conf=mbuser, autologin, .profile=xinit"
+
 sudo mksquashfs "$ROOTFS" "$ISO_DIR/casper/filesystem.squashfs" -noappend
 
 # 8. Create bootloader configuration (GRUB)
