@@ -1,0 +1,43 @@
+#!/bin/sh
+
+# Ensure XDG_RUNTIME_DIR exists and has correct permissions for mbuser
+export XDG_RUNTIME_DIR=/tmp/runtime-mbuser
+export HOME=/home/mbuser
+mkdir -p $XDG_RUNTIME_DIR
+chown mbuser:mbuser $XDG_RUNTIME_DIR
+chmod 700 $XDG_RUNTIME_DIR
+
+# Allow local connections to X server from mbuser
+xhost +local:mbuser || xhost +local: || true
+
+# Set German keyboard layout
+setxkbmap de || true
+
+# DHCP fallback (in case systemd-networkd didn't match the interface)
+dhclient -nw 2>/dev/null || true
+
+# Set best available resolution
+xrandr --output default --mode 1280x1024 2>/dev/null || \
+xrandr --output Virtual1 --mode 1280x1024 2>/dev/null || \
+xrandr --output screen --mode 1280x1024 2>/dev/null || \
+xrandr -s 1280x1024 2>/dev/null || \
+xrandr -s 1024x768 2>/dev/null || true
+
+# Disable screen saver and power management
+xset -dpms || true
+xset s off || true
+xsetroot -solid "#0a0c16" || true
+
+# Load custom Xresources (xterm colors, fonts)
+if [ -f /home/mbuser/.Xresources ]; then
+    xrdb -merge /home/mbuser/.Xresources || true
+fi
+
+# Start the Openbox window manager in the background as mbuser
+runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" openbox &
+
+# Start our custom Qt 6 Desktop Shell as mbuser (blocking)
+exec runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell
+
+
+

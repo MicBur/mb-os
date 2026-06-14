@@ -1,0 +1,90 @@
+# MB-OS GRUB Theme
+# Glassmorphic Dark Cyberpunk Style
+
+# Desktop (Background)
+title-text: ""
+desktop-image: "background.png"
+desktop-color: "#000810"
+
+# Terminal styling
+terminal-font: "DejaVu Sans Mono Regular 14"
+terminal-left: "10%"
+terminal-top: "20%"
+terminal-width: "80%"
+terminal-height: "60%"
+
+# Boot Menu
++ boot_menu {
+    left = 25%
+    top = 35%
+    width = 50%
+    height = 45%
+    item_font = "DejaVu Sans Regular 16"
+    item_color = "#a0b8d0"
+    selected_item_font = "DejaVu Sans Bold 16"
+    selected_item_color = "#20c2f8"
+    item_height = 40
+    item_padding = 12
+    item_spacing = 8
+    item_icon_space = 0
+    icon_width = 0
+    icon_height = 0
+    selected_item_pixmap_style = "select_*.png"
+}
+
+# Title Label
++ label {
+    left = 25%
+    top = 12%
+    width = 50%
+    align = "center"
+    id = "__title__"
+    text = "MB-OS"
+    font = "DejaVu Sans Bold 36"
+    color = "#20c2f8"
+}
+
+# Subtitle
++ label {
+    left = 25%
+    top = 22%
+    width = 50%
+    align = "center"
+    text = "Custom Linux Environment"
+    font = "DejaVu Sans Regular 14"
+    color = "#607090"
+}
+
+# Version label
++ label {
+    left = 25%
+    top = 27%
+    width = 50%
+    align = "center"
+    text = "v2.0 • Ubuntu Noble • Qt6/QML Shell"
+    font = "DejaVu Sans Regular 11"
+    color = "#404860"
+}
+
+# Countdown / Hint
++ label {
+    left = 25%
+    top = 85%
+    width = 50%
+    align = "center"
+    id = "__timeout__"
+    text = "Starte in %d Sekunden..."
+    font = "DejaVu Sans Regular 12"
+    color = "#506080"
+}
+
+# Navigation hint
++ label {
+    left = 25%
+    top = 90%
+    width = 50%
+    align = "center"
+    text = "↑↓ Auswahl  •  Enter Starten  •  E Bearbeiten"
+    font = "DejaVu Sans Regular 11"
+    color = "#304060"
+}

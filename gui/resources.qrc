@@ -1,0 +1,8 @@
+<!DOCTYPE RCC><RCC version="1.0">
+<qresource prefix="/">
+    <file>main.qml</file>
+    <file>DockButton.qml</file>
+    <file>MemoryGraph.qml</file>
+    <file>assets/wallpaper.png</file>
+</qresource>
+</RCC>

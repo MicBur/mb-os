@@ -1,0 +1,1702 @@
+import QtQuick
+import QtQuick.Controls
+
+ApplicationWindow {
+    id: window
+    visible: true
+    width: 1024
+    height: 768
+    visibility: ApplicationWindow.FullScreen
+    title: "MB-OS Desktop Shell"
+
+    // Background Image with deep dark premium hues and a soft glow
+    background: Image {
+        source: "qrc:/assets/wallpaper.png"
+        fillMode: Image.PreserveAspectCrop
+
+        // Dark overlay for readability
+        Rectangle {
+            anchors.fill: parent
+            color: Qt.rgba(0.03, 0.04, 0.08, 0.5) // Glass-like tinted overlay
+        }
+
+        // Decorative subtle neon glow in the top-right
+        Rectangle {
+            width: 400
+            height: 400
+            radius: 200
+            color: themeManager.glowColor
+            x: parent.width - 250
+            y: -150
+            scale: 1.5
+            opacity: 0.3
+            layer.enabled: true
+        }
+
+        // Decorative subtle neon glow in the bottom-left
+        Rectangle {
+            width: 450
+            height: 450
+            radius: 225
+            color: themeManager.glowColor2
+            x: -200
+            y: parent.height - 250
+            scale: 1.5
+            opacity: 0.25
+            layer.enabled: true
+        }
+    }
+
+    // Timer for time and date
+    Timer {
+        interval: 1000
+        running: true
+        repeat: true
+        onTriggered: {
+            var date = new Date();
+            timeLabel.text = date.toLocaleTimeString(Qt.locale(), "HH:mm:ss");
+            dateLabel.text = date.toLocaleDateString(Qt.locale(), "dd. MMMM yyyy");
+        }
+    }
+
+    // Top Status Bar (Glassmorphic)
+    Rectangle {
+        id: topBar
+        width: parent.width
+        height: 60
+        color: themeManager.glassBgColor
+        border.color: themeManager.glassBorderColor
+        border.width: 1
+        anchors.top: parent.top
+
+        Item {
+            anchors.fill: parent
+            anchors.leftMargin: 20
+            anchors.rightMargin: 20
+
+            Row {
+                id: leftRow
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 20
+                height: parent.height
+
+                // OS Logo / Title
+                Text {
+                    text: "MB-OS"
+                    color: themeManager.accentColor
+                    font.pixelSize: 22
+                    font.bold: true
+                    font.family: "Outfit, Inter, sans-serif"
+                    anchors.verticalCenter: parent.verticalCenter
+                    style: Text.Outline
+                    styleColor: "#50000000"
+                }
+
+                Rectangle {
+                    width: 1
+                    height: 30
+                    color: themeManager.glassBorderColor
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // CPU Usage
+                Row {
+                    spacing: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        text: "CPU"
+                        color: "#a0a5c0"
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                    Rectangle {
+                        width: 120
+                        height: 8
+                        color: themeManager.glassBorderColor
+                        radius: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        Rectangle {
+                            width: parent.width * (systemMonitor.cpuUsage / 100.0)
+                            height: parent.height
+                            color: systemMonitor.cpuUsage > 80 ? "#ff4060" : themeManager.accentColor
+                            radius: 4
+                            Behavior on width { NumberAnimation { duration: 300 } }
+                        }
+                    }
+                    Text {
+                        text: Math.round(systemMonitor.cpuUsage) + "%"
+                        color: "#ffffff"
+                        font.pixelSize: 13
+                        font.bold: true
+                        width: 35
+                    }
+                }
+
+                // Memory Usage
+                Row {
+                    spacing: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        text: "RAM"
+                        color: "#a0a5c0"
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                    Rectangle {
+                        width: 120
+                        height: 8
+                        color: themeManager.glassBorderColor
+                        radius: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        Rectangle {
+                            width: parent.width * (systemMonitor.memUsage / 100.0)
+                            height: parent.height
+                            color: systemMonitor.memUsage > 80 ? "#ff4060" : themeManager.secondaryColor
+                            radius: 4
+                            Behavior on width { NumberAnimation { duration: 300 } }
+                        }
+                    }
+                    Text {
+                        text: Math.round(systemMonitor.memUsage) + "%"
+                        color: "#ffffff"
+                        font.pixelSize: 13
+                        font.bold: true
+                        width: 35
+                    }
+                }
+            }
+
+            // Right side: Date & Time + Power
+            Row {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 20
+
+                Column {
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        id: timeLabel
+                        text: new Date().toLocaleTimeString(Qt.locale(), "HH:mm:ss")
+                        color: "#ffffff"
+                        font.pixelSize: 16
+                        font.bold: true
+                        font.family: "monospace"
+                        anchors.right: parent.right
+                    }
+                    Text {
+                        id: dateLabel
+                        text: new Date().toLocaleDateString(Qt.locale(), "dd. MMMM yyyy")
+                        color: "#80a5c0"
+                        font.pixelSize: 10
+                        anchors.right: parent.right
+                    }
+                }
+
+                Rectangle {
+                    width: 1
+                    height: 30
+                    color: themeManager.glassBorderColor
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // Settings Icon Button
+                Button {
+                    id: settingsBtn
+                    width: 36
+                    height: 36
+                    anchors.verticalCenter: parent.verticalCenter
+                    background: Rectangle {
+                        color: settingsBtn.hovered ? "#30" + themeManager.accentColor.toString().substring(1) : "transparent"
+                        radius: 18
+                        border.color: settingsBtn.hovered ? themeManager.accentColor : themeManager.glassBorderColor
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    contentItem: Text {
+                        text: "\u2699"
+                        color: settingsBtn.hovered ? themeManager.accentColor : "#ffffff"
+                        font.pixelSize: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    onClicked: settingsPanel.open()
+                }
+
+                Rectangle {
+                    width: 1
+                    height: 30
+                    color: themeManager.glassBorderColor
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+
+                // Power Icon Button
+                Button {
+                    id: powerBtn
+                    width: 36
+                    height: 36
+                    anchors.verticalCenter: parent.verticalCenter
+                    background: Rectangle {
+                        color: powerBtn.hovered ? "#30ff4060" : "transparent"
+                        radius: 18
+                        border.color: powerBtn.hovered ? "#ff4060" : themeManager.glassBorderColor
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    contentItem: Text {
+                        text: "⏻"
+                        color: powerBtn.hovered ? "#ff4060" : "#ffffff"
+                        font.pixelSize: 18
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    onClicked: powerMenu.open()
+                }
+            }
+        }
+    }
+
+    // Main Workspace Area
+    Item {
+        anchors.top: topBar.bottom
+        anchors.bottom: parent.bottom
+        width: parent.width
+
+        // Big Clock in the Center
+        Column {
+            anchors.centerIn: parent
+            spacing: 10
+
+            Text {
+                text: "MB-OS"
+                font.pixelSize: 72
+                font.bold: true
+                color: "#ffffff"
+                opacity: 0.1
+                font.family: "Outfit, Inter, sans-serif"
+            }
+
+            Text {
+                text: "Willkommen in deinem System"
+                font.pixelSize: 24
+                color: "#e2e8f0"
+                font.family: "Outfit, Inter, sans-serif"
+                font.weight: Font.Light
+            }
+        }
+
+        // App Dock (at the bottom)
+        Rectangle {
+            id: dock
+            width: 600
+            height: 80
+            color: themeManager.glassBgColor
+            radius: 20
+            border.color: themeManager.glassBorderColor
+            border.width: 1
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 40
+            anchors.horizontalCenter: parent.horizontalCenter
+
+            // Mouse tracker for lightfield effect (must be behind buttons)
+            MouseArea {
+                id: dockMouseArea
+                anchors.fill: parent
+                hoverEnabled: true
+                acceptedButtons: Qt.NoButton
+                z: -1
+            }
+
+            // Dynamic hover lightfield glow (sliding glass flare)
+            Rectangle {
+                width: 140
+                height: parent.height
+                radius: 20
+                x: dockMouseArea.mouseX - width / 2
+                y: 0
+                opacity: dockMouseArea.containsMouse ? 1.0 : 0.0
+                visible: opacity > 0
+                color: "transparent"
+                z: 0
+                
+                Rectangle {
+                    anchors.fill: parent
+                    radius: 20
+                    gradient: Gradient {
+                        orientation: Gradient.Horizontal
+                        GradientStop { position: 0.0; color: "transparent" }
+                        GradientStop { position: 0.5; color: Qt.rgba(1.0, 1.0, 1.0, 0.07) }
+                        GradientStop { position: 1.0; color: "transparent" }
+                    }
+                }
+                
+                Behavior on opacity { NumberAnimation { duration: 150 } }
+                Behavior on x { NumberAnimation { duration: 80 } }
+            }
+
+            Row {
+                anchors.centerIn: parent
+                spacing: 25
+                z: 1
+
+                // Terminal Launcher
+                DockButton {
+                    iconText: ">_"
+                    label: "Terminal"
+                    colorCode: themeManager.accentColor
+                    onClicked: systemMonitor.launchApp("xterm -bg black -fg white -fs 12")
+                }
+
+                // File Manager Launcher
+                DockButton {
+                    iconText: "D"
+                    label: "Dateien"
+                    colorCode: "#3b82f6"
+                    onClicked: systemMonitor.launchApp("pcmanfm")
+                }
+
+                // Web Browser Launcher
+                DockButton {
+                    iconText: "W"
+                    label: "Web Browser"
+                    colorCode: "#10b981"
+                    onClicked: systemMonitor.launchApp("mb-browser")
+                }
+
+                // App Drawer Button (Android-style)
+                DockButton {
+                    iconText: ":::"
+                    label: "Apps"
+                    colorCode: "#8b5cf6"
+                    onClicked: appDrawerOverlay.open()
+                }
+
+                // AI Memory Drawer Launcher
+                DockButton {
+                    iconText: "AI"
+                    label: "AI"
+                    colorCode: themeManager.secondaryColor
+                    onClicked: aiDrawer.open()
+                }
+            }
+        }
+    }
+
+    // ==================== APP DRAWER (Android-style) ====================
+    Popup {
+        id: appDrawerOverlay
+        width: window.width
+        height: window.height
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+        padding: 0
+
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+            NumberAnimation { property: "y"; from: 100; to: 0; duration: 250; easing.type: Easing.OutCubic }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 150 }
+        }
+
+        background: Rectangle {
+            color: Qt.rgba(0.03, 0.04, 0.08, 0.92)
+        }
+
+        contentItem: Item {
+            anchors.fill: parent
+
+            // Close handle (swipe down indicator)
+            Rectangle {
+                width: 50; height: 4; radius: 2
+                color: "#50ffffff"
+                anchors.top: parent.top
+                anchors.topMargin: 12
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                MouseArea {
+                    anchors.fill: parent
+                    anchors.margins: -20
+                    onClicked: appDrawerOverlay.close()
+                }
+            }
+
+            // Title
+            Text {
+                id: drawerTitle
+                text: "Alle Apps"
+                color: "#ffffff"
+                font.pixelSize: 28
+                font.bold: true
+                anchors.top: parent.top
+                anchors.topMargin: 35
+                anchors.horizontalCenter: parent.horizontalCenter
+            }
+
+            // Search Bar
+            TextField {
+                id: appSearchField
+                width: Math.min(parent.width - 80, 500)
+                height: 40
+                anchors.top: drawerTitle.bottom
+                anchors.topMargin: 15
+                anchors.horizontalCenter: parent.horizontalCenter
+                placeholderText: "App suchen..."
+                color: "#ffffff"
+                placeholderTextColor: "#607090"
+                font.pixelSize: 14
+                verticalAlignment: Text.AlignVCenter
+                leftPadding: 15
+
+                background: Rectangle {
+                    color: Qt.rgba(0.08, 0.10, 0.18, 0.8)
+                    border.color: appSearchField.activeFocus ? themeManager.accentColor : "#30ffffff"
+                    border.width: 1
+                    radius: 20
+                }
+            }
+
+            // App Grid
+            GridView {
+                id: appGrid
+                anchors.top: appSearchField.bottom
+                anchors.topMargin: 25
+                anchors.bottom: parent.bottom
+                anchors.bottomMargin: 20
+                anchors.horizontalCenter: parent.horizontalCenter
+                width: Math.min(parent.width - 40, cellWidth * 5)
+                cellWidth: 120
+                cellHeight: 110
+                clip: true
+
+                model: ListModel {
+                    id: appModel
+                    // System Apps
+                    ListElement { name: "Terminal"; icon: ">_"; cmd: "xterm -bg black -fg white -fs 12"; clr: "#20c2f8"; category: "system" }
+                    ListElement { name: "Dateien"; icon: "D"; cmd: "pcmanfm"; clr: "#3b82f6"; category: "system" }
+                    ListElement { name: "Browser"; icon: "W"; cmd: "mb-browser"; clr: "#10b981"; category: "system" }
+                    ListElement { name: "Editor"; icon: "E"; cmd: "mousepad"; clr: "#f59e0b"; category: "system" }
+                    ListElement { name: "AI Gedaechtnis"; icon: "AI"; cmd: "__ai_drawer__"; clr: "#f820c2"; category: "ai" }
+                    // Dev Tools
+                    ListElement { name: "htop"; icon: "H"; cmd: "xterm -bg black -fg green -fs 11 -e htop"; clr: "#22c55e"; category: "dev" }
+                    ListElement { name: "Git"; icon: "G"; cmd: "xterm -bg black -fg white -fs 12 -e bash"; clr: "#f97316"; category: "dev" }
+                    ListElement { name: "micro"; icon: "m"; cmd: "xterm -bg black -fg white -fs 12 -e micro"; clr: "#06b6d4"; category: "dev" }
+                    ListElement { name: "Python"; icon: "Py"; cmd: "xterm -bg black -fg white -fs 12 -e python3"; clr: "#3776ab"; category: "dev" }
+                    ListElement { name: "Node.js"; icon: "JS"; cmd: "xterm -bg black -fg white -fs 12 -e node"; clr: "#68a063"; category: "dev" }
+                    // Web Apps
+                    ListElement { name: "Gmail"; icon: "@"; cmd: "mb-browser --url https://mail.google.com"; clr: "#ea4335"; category: "web" }
+                    ListElement { name: "Gemini"; icon: "G*"; cmd: "mb-browser --url https://gemini.google.com"; clr: "#4285f4"; category: "web" }
+                    ListElement { name: "YouTube"; icon: "YT"; cmd: "mb-browser --url https://youtube.com"; clr: "#ff0000"; category: "web" }
+                    ListElement { name: "Google"; icon: "Go"; cmd: "mb-browser --url https://google.com"; clr: "#34a853"; category: "web" }
+                    ListElement { name: "GitHub"; icon: "GH"; cmd: "mb-browser --url https://github.com"; clr: "#ffffff"; category: "web" }
+                    ListElement { name: "ChatGPT"; icon: "GP"; cmd: "mb-browser --url https://chatgpt.com"; clr: "#10a37f"; category: "web" }
+                    // Antigravity AI (Google Gemini CLI)
+                    ListElement { name: "Antigravity"; icon: "AG"; cmd: "__antigravity__"; clr: "#a855f7"; category: "ai" }
+                    // System Tools
+                    ListElement { name: "Netzwerk"; icon: "N"; cmd: "xterm -bg black -fg cyan -fs 11 -e bash -c 'ip addr; echo ---; ping -c 4 google.com; read'"; clr: "#0ea5e9"; category: "system" }
+                    ListElement { name: "SSH"; icon: ">>"; cmd: "xterm -bg black -fg white -fs 12 -e bash"; clr: "#6366f1"; category: "system" }
+                    ListElement { name: "Tor Status"; icon: "T"; cmd: "xterm -bg black -fg magenta -fs 11 -e bash -c 'systemctl status tor; read'"; clr: "#7c3aed"; category: "system" }
+                    ListElement { name: "Installieren"; icon: "⬇"; cmd: "xterm -e launch-installer"; clr: "#f59e0b"; category: "system" }
+                    ListElement { name: "Android"; icon: "🤖"; cmd: "launch-android"; clr: "#3ddc84"; category: "system" }
+                    ListElement { name: "Sperren"; icon: "🔒"; cmd: "mb-lock"; clr: "#8b5cf6"; category: "system" }
+                    ListElement { name: "Audio"; icon: "🔊"; cmd: "xterm -e bash -c 'wpctl status; read'"; clr: "#06b6d4"; category: "system" }
+                    ListElement { name: "Bluetooth"; icon: "B"; cmd: "xterm -e bash -c 'bluetoothctl show; read'"; clr: "#3b82f6"; category: "system" }
+                    ListElement { name: "Firewall"; icon: "🛡"; cmd: "xterm -e bash -c 'sudo ufw status verbose; read'"; clr: "#ef4444"; category: "system" }
+                    ListElement { name: "Screenshot"; icon: "📸"; cmd: "mb-screenshot"; clr: "#f97316"; category: "system" }
+                    ListElement { name: "Video"; icon: "🎬"; cmd: "mpv --player-operation-mode=pseudo-gui"; clr: "#ec4899"; category: "system" }
+                    ListElement { name: "Bilder"; icon: "🖼"; cmd: "feh --scale-down"; clr: "#14b8a6"; category: "system" }
+                    ListElement { name: "PDF"; icon: "📄"; cmd: "zathura"; clr: "#f43f5e"; category: "system" }
+                    ListElement { name: "Rechner"; icon: "🔢"; cmd: "galculator"; clr: "#a855f7"; category: "system" }
+                    ListElement { name: "Update"; icon: "🔄"; cmd: "xterm -e sudo mb-update"; clr: "#22c55e"; category: "system" }
+                    ListElement { name: "Flatpak"; icon: "📦"; cmd: "xterm -e bash -c 'flatpak list; echo ---; echo Installieren: flatpak install flathub APP_NAME; read'"; clr: "#0891b2"; category: "system" }
+                    ListElement { name: "Power"; icon: "P"; cmd: "__power_menu__"; clr: "#ef4444"; category: "system" }
+                }
+
+                delegate: Item {
+                    width: appGrid.cellWidth
+                    height: appGrid.cellHeight
+                    visible: {
+                        var q = appSearchField.text.toLowerCase();
+                        return q === "" || model.name.toLowerCase().indexOf(q) >= 0;
+                    }
+
+                    Column {
+                        anchors.centerIn: parent
+                        spacing: 6
+
+                        // App Icon
+                        Rectangle {
+                            width: 56; height: 56
+                            radius: 16
+                            color: appIconMa.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.05)
+                            border.color: model.clr
+                            border.width: appIconMa.containsMouse ? 2 : 1
+                            anchors.horizontalCenter: parent.horizontalCenter
+
+                            Behavior on color { ColorAnimation { duration: 120 } }
+                            Behavior on border.width { NumberAnimation { duration: 120 } }
+
+                            Text {
+                                text: model.icon
+                                anchors.centerIn: parent
+                                color: model.clr
+                                font.pixelSize: model.icon.length > 2 ? 14 : 20
+                                font.bold: true
+                            }
+
+                            // Scale animation on hover
+                            scale: appIconMa.containsMouse ? 1.1 : 1.0
+                            Behavior on scale { NumberAnimation { duration: 120; easing.type: Easing.OutCubic } }
+
+                            MouseArea {
+                                id: appIconMa
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: {
+                                    if (model.cmd === "__ai_drawer__") {
+                                        appDrawerOverlay.close();
+                                        aiDrawer.open();
+                                    } else if (model.cmd === "__power_menu__") {
+                                        appDrawerOverlay.close();
+                                        powerMenu.open();
+                                    } else if (model.cmd === "__antigravity__") {
+                                        appDrawerOverlay.close();
+                                        // Desktop App → agy CLI → gemini CLI → Web
+                                        systemMonitor.launchApp("launch-antigravity");
+                                    } else {
+                                        appDrawerOverlay.close();
+                                        systemMonitor.launchApp(model.cmd);
+                                    }
+                                }
+                            }
+                        }
+
+                        // App Name
+                        Text {
+                            text: model.name
+                            color: "#c0c8d8"
+                            font.pixelSize: 10
+                            horizontalAlignment: Text.AlignHCenter
+                            width: 100
+                            elide: Text.ElideRight
+                            anchors.horizontalCenter: parent.horizontalCenter
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Power Overlay / Dialog
+    Popup {
+        id: powerMenu
+        width: 320
+        height: 200
+        modal: true
+        focus: true
+        anchors.centerIn: parent
+
+        background: Rectangle {
+            color: themeManager.glassBgColor
+            opacity: 0.95
+            radius: 16
+            border.color: themeManager.glassBorderColor
+            border.width: 1
+        }
+
+        contentItem: Column {
+            spacing: 20
+            anchors.centerIn: parent
+            width: parent.width - 40
+
+            Text {
+                text: "System herunterfahren?"
+                color: "#ffffff"
+                font.pixelSize: 18
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                width: parent.width
+            }
+
+            Row {
+                spacing: 15
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Button {
+                    id: rebootBtn
+                    text: "Neustart"
+                    width: 110
+                    background: Rectangle {
+                        color: rebootBtn.hovered ? themeManager.secondaryColor + "30" : themeManager.glassBgColor
+                        border.color: themeManager.secondaryColor
+                        radius: 8
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: "#ffffff"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+                    onClicked: {
+                        powerMenu.close()
+                        systemMonitor.reboot()
+                    }
+                }
+
+                Button {
+                    id: shutdownBtn
+                    text: "Herunterfahren"
+                    width: 110
+                    background: Rectangle {
+                        color: shutdownBtn.hovered ? "#30ff4060" : "#4e1b29"
+                        border.color: "#ff4060"
+                        radius: 8
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: "#ffffff"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+                    onClicked: {
+                        powerMenu.close()
+                        systemMonitor.powerOff()
+                    }
+                }
+            }
+
+            Button {
+                id: cancelBtn
+                text: "Abbrechen"
+                anchors.horizontalCenter: parent.horizontalCenter
+                flat: true
+                contentItem: Text {
+                    text: parent.text
+                    color: cancelBtn.hovered ? "#ffffff" : "#80a5c0"
+                    horizontalAlignment: Text.AlignHCenter
+                    verticalAlignment: Text.AlignVCenter
+                }
+                onClicked: powerMenu.close()
+            }
+        }
+    }
+
+    // AI & Memory Drawer (MD-based)
+    Drawer {
+        id: aiDrawer
+        width: 450
+        height: window.height
+        edge: Qt.RightEdge
+
+        background: Rectangle {
+            color: Qt.rgba(0.04, 0.05, 0.1, 0.95)
+            border.color: themeManager.glassBorderColor
+            border.width: 1
+
+            Rectangle {
+                width: 2
+                height: parent.height
+                color: themeManager.secondaryColor
+                anchors.left: parent.left
+            }
+        }
+
+        contentItem: Flickable {
+            anchors.fill: parent
+            anchors.margins: 25
+            contentHeight: drawerColumn.height
+            clip: true
+
+            Column {
+                id: drawerColumn
+                width: parent.width
+                spacing: 16
+                property bool daemonOnline: false
+
+                // Title
+                Text {
+                    text: "AI Gedaechtnis"
+                    color: "#ffffff"
+                    font.pixelSize: 22
+                    font.bold: true
+                }
+
+                Text {
+                    text: "Markdown-basiert | Lokal | Permanent"
+                    color: themeManager.accentColor
+                    font.pixelSize: 11
+                }
+
+                // Status indicator
+                Rectangle {
+                    width: parent.width
+                    height: 36
+                    color: themeManager.glassBgColor
+                    radius: 8
+                    border.color: themeManager.glassBorderColor
+
+                    Row {
+                        anchors.centerIn: parent
+                        spacing: 8
+                        Rectangle {
+                            width: 8; height: 8; radius: 4
+                            color: drawerColumn.daemonOnline ? "#22c55e" : "#ef4444"
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Text {
+                            text: drawerColumn.daemonOnline ? "Memory Daemon aktiv" : "Memory Daemon offline"
+                            color: "#d1d5db"
+                            font.pixelSize: 11
+                        }
+                    }
+                }
+
+
+                // Section: Skills
+                Text {
+                    text: "Gelernte Skills:"
+                    color: "#e2e8f0"
+                    font.pixelSize: 13
+                    font.bold: true
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(skillsText.implicitHeight + 20, 80)
+                    color: themeManager.glassBgColor
+                    radius: 10
+                    border.color: themeManager.glassBorderColor
+
+                    Text {
+                        id: skillsText
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        text: "Skills werden geladen..."
+                        color: "#a0a5c0"
+                        font.pixelSize: 11
+                        wrapMode: Text.Wrap
+                    }
+                }
+
+                // Section: Add knowledge
+                Text {
+                    text: "Neues Wissen speichern:"
+                    color: "#e2e8f0"
+                    font.pixelSize: 13
+                    font.bold: true
+                }
+
+                Row {
+                    width: parent.width
+                    spacing: 8
+
+                    TextField {
+                        id: factInput
+                        width: parent.width - 88
+                        height: 36
+                        placeholderText: "z.B. QEMU braucht -nic user"
+                        color: "#ffffff"
+                        placeholderTextColor: "#50a5c0"
+                        verticalAlignment: Text.AlignVCenter
+                        font.pixelSize: 12
+
+                        background: Rectangle {
+                            color: themeManager.glassBgColor
+                            border.color: factInput.activeFocus ? themeManager.secondaryColor : themeManager.glassBorderColor
+                            border.width: 1
+                            radius: 8
+                        }
+                    }
+
+                    Button {
+                        text: "+"
+                        width: 36; height: 36
+
+                        background: Rectangle {
+                            color: parent.hovered ? themeManager.secondaryColor : themeManager.glassBgColor
+                            border.color: themeManager.secondaryColor
+                            radius: 8
+                        }
+                        contentItem: Text {
+                            text: parent.text; color: "#ffffff"
+                            font.bold: true; font.pixelSize: 18
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            var fact = factInput.text.trim();
+                            if (fact !== "") {
+                                var xhr = new XMLHttpRequest();
+                                xhr.open("POST", "http://localhost:8000/memory/add");
+                                xhr.setRequestHeader("Content-Type", "application/json");
+                                xhr.onreadystatechange = function() {
+                                    if (xhr.readyState === XMLHttpRequest.DONE) {
+                                        factInput.text = "";
+                                        addStatus.text = "Gespeichert!";
+                                        addStatus.color = "#22c55e";
+                                        refreshMemory();
+                                    }
+                                }
+                                xhr.send(JSON.stringify({ "content": fact }));
+                            }
+                        }
+                    }
+
+                    Button {
+                        text: "S"
+                        width: 36; height: 36
+
+                        background: Rectangle {
+                            color: parent.hovered ? themeManager.accentColor : themeManager.glassBgColor
+                            border.color: themeManager.accentColor
+                            radius: 8
+                        }
+                        contentItem: Text {
+                            text: parent.text; color: "#ffffff"
+                            font.bold: true; font.pixelSize: 14
+                            horizontalAlignment: Text.AlignHCenter
+                            verticalAlignment: Text.AlignVCenter
+                        }
+                        onClicked: {
+                            var q = factInput.text.trim();
+                            if (q !== "") {
+                                var xhr = new XMLHttpRequest();
+                                xhr.open("POST", "http://localhost:8000/memory/query");
+                                xhr.setRequestHeader("Content-Type", "application/json");
+                                xhr.onreadystatechange = function() {
+                                    if (xhr.readyState === XMLHttpRequest.DONE && xhr.status === 200) {
+                                        var data = JSON.parse(xhr.responseText);
+                                        var txt = "";
+                                        for (var i = 0; i < data.results.length; i++) {
+                                            txt += ">> " + data.results[i].content + "\n\n";
+                                        }
+                                        queryResultText.text = txt || "Nichts gefunden.";
+                                    }
+                                }
+                                xhr.send(JSON.stringify({ "query": q, "limit": 5 }));
+                            }
+                        }
+                    }
+                }
+
+                Text {
+                    id: addStatus
+                    text: " "
+                    color: "#22c55e"
+                    font.pixelSize: 10
+                }
+
+                // Section: Search Results / Memory Content
+                Text {
+                    text: "Gedaechtnis-Inhalt:"
+                    color: "#e2e8f0"
+                    font.pixelSize: 13
+                    font.bold: true
+                }
+
+                Rectangle {
+                    width: parent.width
+                    height: Math.max(queryResultText.implicitHeight + 20, 120)
+                    color: themeManager.glassBgColor
+                    radius: 10
+                    border.color: themeManager.glassBorderColor
+
+                    Text {
+                        id: queryResultText
+                        anchors.fill: parent
+                        anchors.margins: 10
+                        text: "Lade Gedaechtnis..."
+                        color: "#a0a5c0"
+                        font.pixelSize: 11
+                        wrapMode: Text.Wrap
+                    }
+                }
+            }
+        }
+
+        // Load data when drawer opens
+        onOpened: refreshMemory()
+
+        function refreshMemory() {
+            // Check daemon health
+            var xhr1 = new XMLHttpRequest();
+            xhr1.open("GET", "http://localhost:8000/health");
+            xhr1.onreadystatechange = function() {
+                if (xhr1.readyState === XMLHttpRequest.DONE) {
+                    drawerColumn.daemonOnline = (xhr1.status === 200);
+                }
+            }
+            xhr1.send();
+
+            // Load skills
+            var xhr2 = new XMLHttpRequest();
+            xhr2.open("GET", "http://localhost:8000/memory/skills");
+            xhr2.onreadystatechange = function() {
+                if (xhr2.readyState === XMLHttpRequest.DONE && xhr2.status === 200) {
+                    var data = JSON.parse(xhr2.responseText);
+                    var txt = "";
+                    for (var i = 0; i < data.skills.length; i++) {
+                        txt += ">> " + data.skills[i].name + "\n   " + data.skills[i].trigger + "\n\n";
+                    }
+                    skillsText.text = txt || "Noch keine Skills gelernt.";
+                }
+            }
+            xhr2.send();
+
+            // Load recent memories
+            var xhr3 = new XMLHttpRequest();
+            xhr3.open("GET", "http://localhost:8000/memory/list");
+            xhr3.onreadystatechange = function() {
+                if (xhr3.readyState === XMLHttpRequest.DONE && xhr3.status === 200) {
+                    var data = JSON.parse(xhr3.responseText);
+                    var txt = "";
+                    if (data.memories && data.memories.length > 0) {
+                        for (var i = 0; i < data.memories.length; i++) {
+                            var m = data.memories[i];
+                            var time = m.created_at ? m.created_at.substring(5, 16) : "";
+                            var cat = m.category ? " [" + m.category + "]" : "";
+                            txt += "🧠 " + m.content + "\n";
+                            txt += "   📅 " + time + cat + "\n\n";
+                        }
+                    } else {
+                        txt = "Gedaechtnis ist leer.\nTippe oben etwas ein um es zu merken!";
+                    }
+                    queryResultText.text = txt;
+                }
+            }
+            xhr3.send();
+        }
+    }
+
+    // ==================== SETTINGS PANEL ====================
+    Popup {
+        id: settingsPanel
+        width: window.width
+        height: window.height
+        modal: true
+        focus: true
+        closePolicy: Popup.CloseOnEscape
+        padding: 0
+
+        property int selectedCategory: 0
+        property string currentTheme: "Dark"
+        property int scalePercent: 100
+
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0; to: 1; duration: 200 }
+            NumberAnimation { property: "y"; from: 80; to: 0; duration: 250; easing.type: Easing.OutCubic }
+        }
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 150 }
+        }
+
+        background: Rectangle {
+            color: Qt.rgba(0.03, 0.04, 0.08, 0.95)
+        }
+
+        contentItem: Item {
+            anchors.fill: parent
+
+            // Header Bar
+            Rectangle {
+                id: settingsHeader
+                width: parent.width
+                height: 64
+                color: themeManager.glassBgColor
+                border.color: themeManager.glassBorderColor
+                border.width: 1
+
+                Text {
+                    text: "\u2699  Einstellungen"
+                    color: "#ffffff"
+                    font.pixelSize: 24
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.left: parent.left
+                    anchors.leftMargin: 30
+                }
+
+                // Close Button
+                Button {
+                    id: settingsCloseBtn
+                    width: 40
+                    height: 40
+                    anchors.verticalCenter: parent.verticalCenter
+                    anchors.right: parent.right
+                    anchors.rightMargin: 20
+                    background: Rectangle {
+                        color: settingsCloseBtn.hovered ? "#30ff4060" : "transparent"
+                        radius: 20
+                        border.color: settingsCloseBtn.hovered ? "#ff4060" : themeManager.glassBorderColor
+                        border.width: 1
+                        Behavior on color { ColorAnimation { duration: 150 } }
+                    }
+                    contentItem: Text {
+                        text: "\u2715"
+                        color: settingsCloseBtn.hovered ? "#ff4060" : "#ffffff"
+                        font.pixelSize: 20
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    onClicked: settingsPanel.close()
+                }
+            }
+
+            // Content area: Sidebar + Main
+            Row {
+                anchors.top: settingsHeader.bottom
+                anchors.bottom: parent.bottom
+                anchors.left: parent.left
+                anchors.right: parent.right
+
+                // ── Sidebar ──
+                Rectangle {
+                    id: settingsSidebar
+                    width: 220
+                    height: parent.height
+                    color: Qt.rgba(0.04, 0.05, 0.10, 0.90)
+                    border.color: themeManager.glassBorderColor
+                    border.width: 1
+
+                    Column {
+                        anchors.fill: parent
+                        anchors.topMargin: 15
+                        spacing: 4
+
+                        Repeater {
+                            model: [
+                                { label: "\uD83D\uDDA5  Display",      idx: 0 },
+                                { label: "\uD83C\uDF10  Netzwerk",     idx: 1 },
+                                { label: "\u2699  System",             idx: 2 },
+                                { label: "\uD83C\uDFA8  Darstellung",  idx: 3 },
+                                { label: "\u2139  \u00DCber",           idx: 4 }
+                            ]
+
+                            delegate: Rectangle {
+                                width: settingsSidebar.width - 16
+                                height: 44
+                                x: 8
+                                radius: 10
+                                color: settingsPanel.selectedCategory === modelData.idx
+                                       ? Qt.rgba(0.1, 0.6, 0.9, 0.2)
+                                       : catMouse.containsMouse ? Qt.rgba(1, 1, 1, 0.05) : "transparent"
+                                border.color: settingsPanel.selectedCategory === modelData.idx
+                                              ? themeManager.accentColor : "transparent"
+                                border.width: 1
+
+                                Behavior on color { ColorAnimation { duration: 150 } }
+
+                                Text {
+                                    text: modelData.label
+                                    color: settingsPanel.selectedCategory === modelData.idx
+                                           ? themeManager.accentColor : "#c0c8d8"
+                                    font.pixelSize: 14
+                                    font.bold: settingsPanel.selectedCategory === modelData.idx
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    anchors.left: parent.left
+                                    anchors.leftMargin: 16
+                                }
+
+                                MouseArea {
+                                    id: catMouse
+                                    anchors.fill: parent
+                                    hoverEnabled: true
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: settingsPanel.selectedCategory = modelData.idx
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // ── Main Content Area ──
+                Rectangle {
+                    id: settingsContent
+                    width: parent.width - settingsSidebar.width
+                    height: parent.height
+                    color: "transparent"
+
+                    Flickable {
+                        anchors.fill: parent
+                        anchors.margins: 30
+                        contentHeight: settingsMainCol.height
+                        clip: true
+
+                        Column {
+                            id: settingsMainCol
+                            width: parent.width
+                            spacing: 20
+
+                            // ──────── DISPLAY ────────
+                            Column {
+                                width: parent.width
+                                spacing: 16
+                                visible: settingsPanel.selectedCategory === 0
+
+                                Text {
+                                    text: "Display"
+                                    color: "#ffffff"
+                                    font.pixelSize: 22
+                                    font.bold: true
+                                }
+
+                                // Resolution
+                                Rectangle {
+                                    width: parent.width
+                                    height: 90
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 16
+                                        spacing: 8
+
+                                        Text {
+                                            text: "Aufl\u00f6sung"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 14
+                                            font.bold: true
+                                        }
+
+                                        Row {
+                                            spacing: 10
+
+                                            Repeater {
+                                                model: ["1920x1080", "1280x1024", "1024x768"]
+
+                                                delegate: Button {
+                                                    id: resBtn
+                                                    text: modelData
+                                                    width: 120
+                                                    height: 34
+                                                    background: Rectangle {
+                                                        color: resBtn.hovered ? Qt.rgba(0.1, 0.6, 0.9, 0.25) : themeManager.glassBgColor
+                                                        border.color: themeManager.accentColor
+                                                        border.width: 1
+                                                        radius: 8
+                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                    }
+                                                    contentItem: Text {
+                                                        text: parent.text
+                                                        color: "#ffffff"
+                                                        font.pixelSize: 12
+                                                        horizontalAlignment: Text.AlignHCenter
+                                                        verticalAlignment: Text.AlignVCenter
+                                                    }
+                                                    onClicked: {
+                                                        var parts = modelData.split("x");
+                                                        systemMonitor.launchApp("xrandr -s " + parts[0] + "x" + parts[1]);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+
+                                // Scale
+                                Rectangle {
+                                    width: parent.width
+                                    height: 90
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 16
+                                        spacing: 8
+
+                                        Text {
+                                            text: "Skalierung: " + settingsPanel.scalePercent + "%"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 14
+                                            font.bold: true
+                                        }
+
+                                        Slider {
+                                            id: scaleSlider
+                                            width: Math.min(parent.width, 400)
+                                            from: 100
+                                            to: 200
+                                            stepSize: 25
+                                            value: settingsPanel.scalePercent
+                                            onValueChanged: settingsPanel.scalePercent = value
+
+                                            background: Rectangle {
+                                                x: scaleSlider.leftPadding
+                                                y: scaleSlider.topPadding + scaleSlider.availableHeight / 2 - height / 2
+                                                width: scaleSlider.availableWidth
+                                                height: 6
+                                                radius: 3
+                                                color: themeManager.glassBorderColor
+
+                                                Rectangle {
+                                                    width: scaleSlider.visualPosition * parent.width
+                                                    height: parent.height
+                                                    color: themeManager.accentColor
+                                                    radius: 3
+                                                }
+                                            }
+
+                                            handle: Rectangle {
+                                                x: scaleSlider.leftPadding + scaleSlider.visualPosition * (scaleSlider.availableWidth - width)
+                                                y: scaleSlider.topPadding + scaleSlider.availableHeight / 2 - height / 2
+                                                width: 20
+                                                height: 20
+                                                radius: 10
+                                                color: themeManager.accentColor
+                                                border.color: "#ffffff"
+                                                border.width: 2
+                                            }
+                                        }
+
+                                        Text {
+                                            text: "Setzt QT_SCALE_FACTOR (Neustart n\u00f6tig)"
+                                            color: "#607090"
+                                            font.pixelSize: 10
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ──────── NETZWERK ────────
+                            Column {
+                                width: parent.width
+                                spacing: 16
+                                visible: settingsPanel.selectedCategory === 1
+
+                                Text {
+                                    text: "Netzwerk"
+                                    color: "#ffffff"
+                                    font.pixelSize: 22
+                                    font.bold: true
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    height: netCol.height + 32
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        id: netCol
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        anchors.margins: 16
+                                        spacing: 14
+
+                                        // Hostname
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Hostname:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 120 }
+                                            Text { text: "mb-os-live"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Rectangle { width: parent.width; height: 1; color: themeManager.glassBorderColor }
+
+                                        // IP Address
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "IP-Adresse:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 120 }
+                                            Text { text: "10.0.2.15 (DHCP)"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Rectangle { width: parent.width; height: 1; color: themeManager.glassBorderColor }
+
+                                        // Tor Status
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Tor Status:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 120 }
+                                            Rectangle {
+                                                width: 12; height: 12; radius: 6
+                                                color: "#22c55e"
+                                                anchors.verticalCenter: parent.verticalCenter
+                                            }
+                                            Text { text: "Aktiv"; color: "#22c55e"; font.pixelSize: 13; font.bold: true }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ──────── SYSTEM ────────
+                            Column {
+                                width: parent.width
+                                spacing: 16
+                                visible: settingsPanel.selectedCategory === 2
+
+                                Text {
+                                    text: "System"
+                                    color: "#ffffff"
+                                    font.pixelSize: 22
+                                    font.bold: true
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    height: sysCol.height + 32
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        id: sysCol
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        anchors.margins: 16
+                                        spacing: 14
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "CPU:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 140 }
+                                            Text { text: "Intel/AMD x86_64 (Live)"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Rectangle { width: parent.width; height: 1; color: themeManager.glassBorderColor }
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "RAM:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 140 }
+                                            Text { text: "4096 MB (Live-System)"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Rectangle { width: parent.width; height: 1; color: themeManager.glassBorderColor }
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Disk:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 140 }
+                                            Text { text: "SquashFS (Read-Only)"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Rectangle { width: parent.width; height: 1; color: themeManager.glassBorderColor }
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Kernel:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 140 }
+                                            Text { text: "6.8.0-generic (Ubuntu Noble)"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ──────── DARSTELLUNG ────────
+                            Column {
+                                width: parent.width
+                                spacing: 16
+                                visible: settingsPanel.selectedCategory === 3
+
+                                Text {
+                                    text: "Darstellung"
+                                    color: "#ffffff"
+                                    font.pixelSize: 22
+                                    font.bold: true
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    height: 100
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        anchors.fill: parent
+                                        anchors.margins: 16
+                                        spacing: 12
+
+                                        Text {
+                                            text: "Theme w\u00e4hlen"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 14
+                                            font.bold: true
+                                        }
+
+                                        Row {
+                                            spacing: 12
+
+                                            Repeater {
+                                                model: [
+                                                    { name: "Dark",  clr: "#20c2f8" },
+                                                    { name: "Cyber", clr: "#f820c2" },
+                                                    { name: "Ocean", clr: "#10b981" }
+                                                ]
+
+                                                delegate: Button {
+                                                    id: themeBtn
+                                                    width: 100
+                                                    height: 38
+                                                    background: Rectangle {
+                                                        color: settingsPanel.currentTheme === modelData.name
+                                                               ? Qt.rgba(0.1, 0.6, 0.9, 0.25) : themeBtn.hovered ? Qt.rgba(1, 1, 1, 0.08) : themeManager.glassBgColor
+                                                        border.color: settingsPanel.currentTheme === modelData.name
+                                                                      ? modelData.clr : themeManager.glassBorderColor
+                                                        border.width: settingsPanel.currentTheme === modelData.name ? 2 : 1
+                                                        radius: 10
+                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                        Behavior on border.color { ColorAnimation { duration: 150 } }
+                                                    }
+                                                    contentItem: Row {
+                                                        spacing: 8
+                                                        anchors.centerIn: parent
+                                                        Rectangle {
+                                                            width: 12; height: 12; radius: 6
+                                                            color: modelData.clr
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        }
+                                                        Text {
+                                                            text: modelData.name
+                                                            color: "#ffffff"
+                                                            font.pixelSize: 13
+                                                            font.bold: settingsPanel.currentTheme === modelData.name
+                                                            anchors.verticalCenter: parent.verticalCenter
+                                                        }
+                                                    }
+                                                    onClicked: {
+                                                        settingsPanel.currentTheme = modelData.name;
+                                                        if (typeof themeManager.setTheme === "function") {
+                                                            themeManager.setTheme(modelData.name);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ──────── \u00dcBER ────────
+                            Column {
+                                width: parent.width
+                                spacing: 16
+                                visible: settingsPanel.selectedCategory === 4
+
+                                Text {
+                                    text: "\u00DCber MB-OS"
+                                    color: "#ffffff"
+                                    font.pixelSize: 22
+                                    font.bold: true
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    height: aboutCol.height + 32
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        id: aboutCol
+                                        anchors.left: parent.left
+                                        anchors.right: parent.right
+                                        anchors.top: parent.top
+                                        anchors.margins: 16
+                                        spacing: 14
+
+                                        // Logo
+                                        Text {
+                                            text: "MB-OS"
+                                            color: themeManager.accentColor
+                                            font.pixelSize: 36
+                                            font.bold: true
+                                            font.family: "Outfit, Inter, sans-serif"
+                                            style: Text.Outline
+                                            styleColor: "#30000000"
+                                        }
+
+                                        Rectangle { width: parent.width; height: 1; color: themeManager.glassBorderColor }
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Version:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 120 }
+                                            Text { text: "2.0.0 (Noble)"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Build Date:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 120 }
+                                            Text { text: "2026-06-14"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Basis:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 120 }
+                                            Text { text: "Ubuntu 24.04 Noble Numbat"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Row {
+                                            spacing: 10
+                                            Text { text: "Shell:"; color: "#a0a5c0"; font.pixelSize: 13; font.bold: true; width: 120 }
+                                            Text { text: "Qt6/QML Glassmorphism"; color: "#ffffff"; font.pixelSize: 13 }
+                                        }
+
+                                        Rectangle { width: parent.width; height: 1; color: themeManager.glassBorderColor }
+
+                                        Text {
+                                            text: "Credits"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 14
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            text: "Entwickelt mit Antigravity AI\nDesign: Glassmorphism Desktop Shell\nLizenz: Open Source"
+                                            color: "#80a5c0"
+                                            font.pixelSize: 12
+                                            lineHeight: 1.4
+                                            wrapMode: Text.Wrap
+                                            width: parent.width
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════
+    // Global Right-Click Context Menu (Copy / Paste / Cut / Select All)
+    // ═══════════════════════════════════════════════════════════════
+    MouseArea {
+        id: globalRightClick
+        anchors.fill: parent
+        acceptedButtons: Qt.RightButton
+        z: 1  // Above desktop content, below panels/popups
+        propagateComposedEvents: true
+
+        onClicked: function(mouse) {
+            if (mouse.button === Qt.RightButton) {
+                contextMenu.x = Math.min(mouse.x, parent.width - 220);
+                contextMenu.y = Math.min(mouse.y, parent.height - 300);
+                contextMenu.open();
+                mouse.accepted = true;
+            }
+        }
+        onPressed: function(mouse) {
+            if (mouse.button !== Qt.RightButton) {
+                mouse.accepted = false;  // Let left-clicks through
+            }
+        }
+    }
+
+    Popup {
+        id: contextMenu
+        width: 200
+        padding: 4
+        modal: true
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        background: Rectangle {
+            color: Qt.rgba(0.06, 0.07, 0.12, 0.95)
+            border.color: Qt.rgba(0.2, 0.25, 0.4, 0.6)
+            border.width: 1
+            radius: 10
+
+            layer.enabled: true
+            layer.effect: Item {}
+        }
+
+        contentItem: Column {
+            spacing: 2
+            width: parent.width
+
+            Repeater {
+                model: [
+                    { label: "✂️  Ausschneiden", key: "ctrl+x" },
+                    { label: "📋  Kopieren",      key: "ctrl+c" },
+                    { label: "📥  Einfügen",      key: "ctrl+v" },
+                    { label: "🔤  Alles Auswählen", key: "ctrl+a" }
+                ]
+
+                delegate: Rectangle {
+                    width: 192
+                    height: 36
+                    radius: 6
+                    color: menuItemMouse.containsMouse ? Qt.rgba(0.15, 0.55, 0.85, 0.3) : "transparent"
+
+                    Text {
+                        anchors.fill: parent
+                        anchors.leftMargin: 12
+                        verticalAlignment: Text.AlignVCenter
+                        text: modelData.label
+                        color: menuItemMouse.containsMouse ? "#20c2f8" : "#c9d1d9"
+                        font.pixelSize: 14
+                        font.family: "Segoe UI"
+                    }
+
+                    Text {
+                        anchors.right: parent.right
+                        anchors.rightMargin: 12
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: modelData.key === "ctrl+x" ? "Ctrl+X" :
+                              modelData.key === "ctrl+c" ? "Ctrl+C" :
+                              modelData.key === "ctrl+v" ? "Ctrl+V" : "Ctrl+A"
+                        color: "#484f58"
+                        font.pixelSize: 11
+                    }
+
+                    MouseArea {
+                        id: menuItemMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            contextMenu.close();
+                            systemMonitor.launchApp("xdotool key " + modelData.key);
+                        }
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle {
+                width: 180; height: 1
+                anchors.horizontalCenter: parent.horizontalCenter
+                color: Qt.rgba(0.3, 0.35, 0.5, 0.3)
+            }
+
+            // Clipboard Bridge Button
+            Rectangle {
+                width: 192
+                height: 36
+                radius: 6
+                color: clipBridgeMouse.containsMouse ? Qt.rgba(0.85, 0.15, 0.55, 0.3) : "transparent"
+
+                Text {
+                    anchors.fill: parent
+                    anchors.leftMargin: 12
+                    verticalAlignment: Text.AlignVCenter
+                    text: "🌐  Clipboard Bridge"
+                    color: clipBridgeMouse.containsMouse ? "#f820c2" : "#c9d1d9"
+                    font.pixelSize: 14
+                }
+
+                MouseArea {
+                    id: clipBridgeMouse
+                    anchors.fill: parent
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: {
+                        contextMenu.close();
+                        systemMonitor.launchApp("mb-browser --url http://127.0.0.1:9876");
+                    }
+                }
+            }
+        }
+    }
+}

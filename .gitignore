@@ -1,0 +1,22 @@
+# Build artifacts
+*.iso
+*.vhdx
+build/
+gui/build/
+browser/build/
+
+# OS files
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Temp
+/tmp/
+*.log
+*.bak
+
+# Large binaries
+Antigravity.tar.gz

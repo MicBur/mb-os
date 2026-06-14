@@ -1,0 +1,36 @@
+#!/bin/bash
+set -e
+
+echo "=== Initializing MB-OS Databases ==="
+
+# 1. Wait for Postgres to be active
+echo "Waiting for PostgreSQL..."
+for i in {1..30}; do
+    if pg_isready -h localhost -p 5432 >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+# Initialize Postgres User & DB
+echo "Configuring PostgreSQL user and database..."
+sudo -u postgres psql -c "CREATE USER mbuser WITH PASSWORD 'mbpassword';" || true
+sudo -u postgres psql -c "ALTER USER mbuser WITH PASSWORD 'mbpassword';" || true
+sudo -u postgres psql -c "CREATE DATABASE mb_os_memory OWNER mbuser;" || true
+sudo -u postgres psql -c "GRANT ALL PRIVILEGES ON DATABASE mb_os_memory TO mbuser;" || true
+sudo -u postgres psql -d mb_os_memory -c "CREATE EXTENSION IF NOT EXISTS vector;" || true
+
+# 2. Wait for Neo4j to be active
+echo "Waiting for Neo4j..."
+for i in {1..60}; do
+    if (echo > /dev/tcp/127.0.0.1/7687) >/dev/null 2>&1; then
+        break
+    fi
+    sleep 1
+done
+
+# Initialize Neo4j User & Password
+echo "Configuring Neo4j credentials..."
+cypher-shell -u neo4j -p neo4j "ALTER USER neo4j SET PASSWORD 'mbpassword';" || true
+
+echo "Databases initialized successfully!"
