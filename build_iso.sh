@@ -210,7 +210,7 @@ apt-get install -y --no-install-recommends \
     xinit \
     x11-xserver-utils \
     openbox \
-    xterm \
+    xterm xfonts-base xfonts-75dpi \
     pcmanfm \
     mousepad \
     libqt6core6 \

@@ -48,6 +48,9 @@ fi
 runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" openbox &
 OPENBOX_PID=$!
 
+# Start Memory Daemon (FastAPI on port 8000)
+runuser -u mbuser -- env HOME="/home/mbuser" MEMORY_DIR="/home/mbuser/.mb-os/memory" python3 /usr/local/share/mb-os/memory_daemon.py > /tmp/memory-daemon.log 2>&1 &
+
 # Start our custom Qt 6 Desktop Shell as mbuser
 runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell 2>/tmp/mb-shell-error.log
 
