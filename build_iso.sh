@@ -380,78 +380,51 @@ else
     apt-get install -y --no-install-recommends nodejs npm 2>/dev/null || true
 fi
 
-# Install Antigravity 2.0 — Gemini CLI
-npm install -g @google/gemini-cli 2>&1 || true
+# Install Antigravity 2.0 — CLI + Desktop App
+echo ">>> Installing Antigravity CLI + Desktop..."
+mkdir -p /opt/antigravity /home/mbuser/.local/bin
 
-# Install Antigravity 2.0 — Desktop App + CLI
-mkdir -p /opt/antigravity
-cd /opt/antigravity
-
-# 1. Install CLI via official installer
-curl -fsSL https://antigravity.google/cli/install.sh -o install.sh 2>&1 || true
-if [ -f install.sh ]; then
-    HOME=/home/mbuser bash install.sh 2>&1 || true
+# 1. CLI: Official installer (writes to ~/.local/bin/agy)
+export HOME=/home/mbuser
+curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh 2>&1 || true
+if [ -f /tmp/agy-install.sh ]; then
+    bash /tmp/agy-install.sh 2>&1 || true
+    rm -f /tmp/agy-install.sh
 fi
 
-# 2. Install Desktop App from local tar.gz
-if [ -f /opt/antigravity/Antigravity.tar.gz ]; then
-    echo ">>> Installing Antigravity Desktop App from local archive..."
-    cd /opt/antigravity
-    tar xzf Antigravity.tar.gz 2>&1 || true
-    rm -f Antigravity.tar.gz
-    # Find the binary
-    AGBIN=$(find /opt/antigravity -maxdepth 3 -type f \( -name "antigravity" -o -name "Antigravity" -o -name "antigravity-desktop" \) 2>/dev/null | head -1)
-    if [ -n "$AGBIN" ]; then
-        chmod +x "$AGBIN"
-        ln -sf "$AGBIN" /usr/local/bin/antigravity-desktop
-        echo "✅ Antigravity Desktop App installiert!"
-    else
-        # Electron apps often have the binary with a different name
-        AGBIN=$(find /opt/antigravity -maxdepth 3 -type f -executable -name "antigravity*" -o -name "Antigravity*" 2>/dev/null | head -1)
-        if [ -n "$AGBIN" ]; then
-            chmod +x "$AGBIN"
-            ln -sf "$AGBIN" /usr/local/bin/antigravity-desktop
-            echo "✅ Antigravity Desktop App installiert! (Binary: $AGBIN)"
-        else
-            echo "⚠ Binary nicht gefunden — Inhalt:"
-            ls -la /opt/antigravity/
-        fi
-    fi
-else
-    echo "⚠ Antigravity.tar.gz nicht gefunden — CLI + Web fallback."
-fi
-
-# Create launch wrapper for Antigravity (QProcess can't handle nested bash quotes)
-cat > /usr/local/bin/launch-antigravity << 'LAUNCHER'
-#!/bin/bash
-export DISPLAY=:0
-if [ -x /usr/local/bin/antigravity-desktop ]; then
-    /usr/local/bin/antigravity-desktop --no-sandbox &
-elif [ -x /usr/local/bin/agy ]; then
-    xterm -bg black -fg white -fs 12 -e /usr/local/bin/agy &
-else
-    mb-browser --url https://antigravity.google &
-fi
-LAUNCHER
-chmod +x /usr/local/bin/launch-antigravity
-
-# 3. Create symlinks for CLI
+# Symlink CLI to /usr/local/bin for system-wide access
 if [ -f /home/mbuser/.local/bin/agy ]; then
     ln -sf /home/mbuser/.local/bin/agy /usr/local/bin/agy
     ln -sf /home/mbuser/.local/bin/agy /usr/local/bin/antigravity
-    echo "✅ Antigravity CLI (agy) installiert und verlinkt!"
+    echo "✅ Antigravity CLI (agy) installiert: $(agy --version 2>/dev/null || echo 'OK')"
+else
+    echo "⚠ agy CLI nicht gefunden — wird beim ersten Boot nachinstalliert"
 fi
 
-# 4. Create .desktop entry for App Drawer
-cat > /usr/share/applications/antigravity.desktop << 'DESKTOP'
-[Desktop Entry]
-Name=Antigravity 2.0
-Comment=Google AI Agent Platform
-Exec=antigravity-desktop
-Icon=antigravity
-Type=Application
-Categories=Development;IDE;
-DESKTOP
+# 2. Desktop App: Download tarball from official source if available
+cd /opt/antigravity
+if [ -f /opt/antigravity/Antigravity.tar.gz ]; then
+    echo ">>> Antigravity Desktop aus lokalem Archiv..."
+    tar xzf Antigravity.tar.gz 2>&1 || true
+    rm -f Antigravity.tar.gz
+fi
+# Find the actual binary (Electron apps have various names)
+AGBIN=$(find /opt/antigravity -maxdepth 3 -type f \( -name "antigravity" -o -name "Antigravity" -o -name "antigravity-desktop" \) ! -name "*.tar.gz" ! -name "*.zip" 2>/dev/null | head -1)
+if [ -z "$AGBIN" ]; then
+    AGBIN=$(find /opt/antigravity -maxdepth 3 -type f -executable \( -name "antigravity*" -o -name "Antigravity*" \) ! -name "*.tar.gz" ! -name "*.zip" ! -name "*.sh" 2>/dev/null | head -1)
+fi
+if [ -n "$AGBIN" ]; then
+    chmod +x "$AGBIN"
+    ln -sf "$AGBIN" /usr/local/bin/antigravity-desktop
+    echo "✅ Antigravity Desktop App: $AGBIN"
+else
+    echo "⚠ Keine Desktop-App Binary — CLI + Browser Fallback aktiv"
+fi
+
+# 3. Fix ownership
+chown -R mbuser:mbuser /home/mbuser/.local /home/mbuser/.cache 2>/dev/null || true
+
+cd /
 
 cd /
 
@@ -1042,6 +1015,131 @@ XPROFILE
 sudo chown -R 1000:1000 "$ROOTFS/home/mbuser" 2>/dev/null || true
 
 echo ">>> Configs geschrieben: casper.conf=mbuser, autologin, .profile=xinit"
+
+# ============================================================
+# POST-CHROOT SAFETY NET: Launcher-Scripts + SSH + Firefox + mb-browser
+# (Geschrieben NACH dem chroot, damit sie garantiert im squashfs landen)
+# ============================================================
+echo ">>> Post-Chroot: Launcher-Scripts + Configs schreiben..."
+
+# --- SSH Key ---
+SSHPUB="ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIPoSIm6BfLUNinWvtQHljyckGno+hn47vFIyUTpI33E2 nutzer@LAPTOP-RBU7SDCN"
+sudo mkdir -p "$ROOTFS/home/mbuser/.ssh"
+echo "$SSHPUB" | sudo tee "$ROOTFS/home/mbuser/.ssh/authorized_keys" > /dev/null
+sudo chmod 700 "$ROOTFS/home/mbuser/.ssh"
+sudo chmod 600 "$ROOTFS/home/mbuser/.ssh/authorized_keys"
+sudo chown -R 1000:1000 "$ROOTFS/home/mbuser/.ssh"
+sudo sed -i 's/^#PasswordAuthentication.*/PasswordAuthentication yes/' "$ROOTFS/etc/ssh/sshd_config"
+sudo sed -i 's/^PasswordAuthentication no/PasswordAuthentication yes/' "$ROOTFS/etc/ssh/sshd_config"
+
+# --- Firefox PPA Pin (damit apt echtes .deb statt snap-stub installiert) ---
+sudo tee "$ROOTFS/etc/apt/preferences.d/mozilla" > /dev/null << 'MOZPIN'
+Package: firefox
+Pin: release o=LP-PPA-mozillateam
+Pin-Priority: 1001
+MOZPIN
+
+# --- Antigravity Desktop Symlink sichern ---
+if [ -f "$ROOTFS/opt/antigravity/Antigravity-x64/antigravity" ]; then
+    sudo ln -sf /opt/antigravity/Antigravity-x64/antigravity "$ROOTFS/usr/local/bin/antigravity-desktop"
+    echo "  ✓ antigravity-desktop -> Antigravity-x64/antigravity"
+fi
+# --- agy CLI Symlink sichern ---
+if [ -f "$ROOTFS/home/mbuser/.local/bin/agy" ]; then
+    sudo ln -sf /home/mbuser/.local/bin/agy "$ROOTFS/usr/local/bin/agy"
+    sudo ln -sf /home/mbuser/.local/bin/agy "$ROOTFS/usr/local/bin/antigravity"
+    echo "  ✓ agy CLI symlinked"
+fi
+
+# --- launch-antigravity ---
+sudo tee "$ROOTFS/usr/local/bin/launch-antigravity" > /dev/null << 'LAUNCHER'
+#!/bin/bash
+export DISPLAY=:0
+if [ -x /usr/local/bin/antigravity-desktop ]; then
+    /usr/local/bin/antigravity-desktop --no-sandbox &
+elif [ -x /usr/local/bin/agy ]; then
+    xterm -bg '#0a0c16' -fg '#00ffcc' -fs 12 -T "Antigravity AI" -e /usr/local/bin/agy &
+else
+    mb-browser --url "https://gemini.google.com" &
+fi
+LAUNCHER
+
+# --- mb-browser (Firefox + Tor Toggle) ---
+sudo tee "$ROOTFS/usr/local/bin/mb-browser" > /dev/null << 'MBBROWSER'
+#!/bin/bash
+export DISPLAY=:0
+TOR_MODE=false
+URL=""
+while [ $# -gt 0 ]; do
+    case $1 in
+        --tor) TOR_MODE=true; shift ;;
+        --url) URL="$2"; shift 2 ;;
+        *) URL="$1"; shift ;;
+    esac
+done
+TOR_PROFILE="/home/mbuser/.mozilla/firefox/tor-profile"
+NORMAL_PROFILE="/home/mbuser/.mozilla/firefox/normal-profile"
+if [ "$TOR_MODE" = true ]; then
+    mkdir -p "$TOR_PROFILE"
+    cat > "$TOR_PROFILE/user.js" << 'TORPREFS'
+user_pref("network.proxy.type", 1);
+user_pref("network.proxy.socks", "127.0.0.1");
+user_pref("network.proxy.socks_port", 9050);
+user_pref("network.proxy.socks_version", 5);
+user_pref("network.proxy.socks_remote_dns", true);
+user_pref("privacy.resistFingerprinting", true);
+user_pref("browser.privatebrowsing.autostart", true);
+user_pref("browser.startup.homepage", "https://check.torproject.org");
+TORPREFS
+    [ -n "$URL" ] && firefox --no-remote --profile "$TOR_PROFILE" "$URL" & || firefox --no-remote --profile "$TOR_PROFILE" &
+else
+    mkdir -p "$NORMAL_PROFILE"
+    [ -n "$URL" ] && firefox --profile "$NORMAL_PROFILE" "$URL" & || firefox --profile "$NORMAL_PROFILE" &
+fi
+MBBROWSER
+
+# --- launch-installer ---
+sudo tee "$ROOTFS/usr/local/bin/launch-installer" > /dev/null << 'INST'
+#!/bin/bash
+export DISPLAY=:0
+[ -x /usr/local/bin/mb-installer ] && sudo /usr/local/bin/mb-installer || echo "Installer nicht gefunden!"
+INST
+
+# --- launch-android ---
+sudo tee "$ROOTFS/usr/local/bin/launch-android" > /dev/null << 'ANDROID'
+#!/bin/bash
+export DISPLAY=:0
+command -v waydroid &>/dev/null && waydroid show-full-ui & || xterm -e bash -c 'echo "Waydroid nicht installiert. sudo apt install waydroid"; read' &
+ANDROID
+
+# --- mb-lock / mb-screenshot / mb-update ---
+echo '#!/bin/bash' | sudo tee "$ROOTFS/usr/local/bin/mb-lock" > /dev/null
+echo 'i3lock -c 0a0c16 -e' | sudo tee -a "$ROOTFS/usr/local/bin/mb-lock" > /dev/null
+
+sudo tee "$ROOTFS/usr/local/bin/mb-screenshot" > /dev/null << 'SHOT'
+#!/bin/bash
+D="/home/mbuser/Screenshots"; mkdir -p "$D"
+F="$D/screenshot_$(date +%Y%m%d_%H%M%S).png"
+scrot "$F" && feh "$F" &
+SHOT
+
+sudo tee "$ROOTFS/usr/local/bin/mb-update" > /dev/null << 'UPD'
+#!/bin/bash
+echo "=== MB-OS System Update ==="
+apt-get update && apt-get upgrade -y && apt-get autoremove -y
+echo "Update fertig!"; read -p "Enter..."
+UPD
+
+# Alle executable machen
+sudo chmod +x "$ROOTFS/usr/local/bin/launch-antigravity" \
+    "$ROOTFS/usr/local/bin/launch-installer" \
+    "$ROOTFS/usr/local/bin/launch-android" \
+    "$ROOTFS/usr/local/bin/mb-browser" \
+    "$ROOTFS/usr/local/bin/mb-lock" \
+    "$ROOTFS/usr/local/bin/mb-screenshot" \
+    "$ROOTFS/usr/local/bin/mb-update"
+
+echo "  ✓ 7 Launcher-Scripts + SSH + Firefox-Pin geschrieben"
 
 sudo mksquashfs "$ROOTFS" "$ISO_DIR/casper/filesystem.squashfs" -noappend
 

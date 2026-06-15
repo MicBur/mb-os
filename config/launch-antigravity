@@ -1,0 +1,10 @@
+#!/bin/bash
+# Launch Antigravity (Gemini AI)
+export DISPLAY=:0
+if [ -x /usr/local/bin/antigravity-desktop ]; then
+    /usr/local/bin/antigravity-desktop --no-sandbox &
+elif [ -x /usr/local/bin/agy ]; then
+    xterm -bg '#0a0c16' -fg '#00ffcc' -fs 12 -T "Antigravity AI" -e /usr/local/bin/agy &
+else
+    mb-browser --url "https://gemini.google.com" &
+fi

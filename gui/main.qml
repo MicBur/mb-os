@@ -492,6 +492,8 @@ ApplicationWindow {
                     ListElement { name: "ChatGPT"; icon: "GP"; cmd: "mb-browser --url https://chatgpt.com"; clr: "#10a37f"; category: "web" }
                     // Antigravity AI (Google Gemini CLI)
                     ListElement { name: "Antigravity"; icon: "AG"; cmd: "__antigravity__"; clr: "#a855f7"; category: "ai" }
+                    // Darkweb / Tor Browser
+                    ListElement { name: "Darkweb"; icon: "🧅"; cmd: "mb-browser --tor"; clr: "#7c3aed"; category: "web" }
                     // System Tools
                     ListElement { name: "Netzwerk"; icon: "N"; cmd: "xterm -bg black -fg cyan -fs 11 -e bash -c 'ip addr; echo ---; ping -c 4 google.com; read'"; clr: "#0ea5e9"; category: "system" }
                     ListElement { name: "SSH"; icon: ">>"; cmd: "xterm -bg black -fg white -fs 12 -e bash"; clr: "#6366f1"; category: "system" }
