@@ -81,6 +81,10 @@ sudo mkdir -p "$ROOTFS/etc/mb-os"
 sudo cp "$PROJECT_DIR/config/mb-os-xinitrc" "$ROOTFS/etc/mb-os/mb-os-xinitrc"
 sudo chmod +x "$ROOTFS/etc/mb-os/mb-os-xinitrc"
 
+# Copy EFI boot repair script
+sudo cp "$PROJECT_DIR/config/fix-efi-boot.sh" "$ROOTFS/usr/local/bin/fix-efi-boot.sh"
+sudo chmod +x "$ROOTFS/usr/local/bin/fix-efi-boot.sh"
+
 # System-wide cursor theme (KRITISCH für sichtbaren Mauszeiger!)
 sudo mkdir -p "$ROOTFS/usr/share/icons/default"
 sudo tee "$ROOTFS/usr/share/icons/default/index.theme" > /dev/null << 'EOF'
@@ -194,6 +198,19 @@ echo ">>> MB-OS Installer in rootfs kopiert"
 
 (sudo chroot "$ROOTFS" /bin/bash << 'EOF'
 export DEBIAN_FRONTEND=noninteractive
+export DEBCONF_NONINTERACTIVE_SEEN=true
+# Automatisch bestehende Configs behalten (kein GTK-Prompt!)
+echo 'Dpkg::Options {"--force-confold";"--force-confdef";};' > /etc/apt/apt.conf.d/99force-conf
+apt-get update
+
+# --- Firefox PPA (echtes .deb statt Snap-Stub!) ---
+apt-get install -y software-properties-common
+add-apt-repository -y ppa:mozillateam/ppa
+cat > /etc/apt/preferences.d/mozilla << 'MOZPIN'
+Package: firefox
+Pin: release o=LP-PPA-mozillateam
+Pin-Priority: 1001
+MOZPIN
 apt-get update
 
 # Install Kernel, Live boot system, X11 server, Openbox WM, Qt6/WebEngine, databases, python, tor
@@ -300,7 +317,12 @@ apt-get install -y --no-install-recommends \
     dmz-cursor-theme \
     firefox \
     os-prober \
-    ntfs-3g-dev
+    ntfs-3g-dev \
+    grub-efi-amd64 \
+    grub-efi-amd64-bin \
+    efibootmgr \
+    calamares \
+    calamares-settings-ubuntu-common
 
 # GPU Driver Auto-Detection (runs on first boot, not in ISO)
 # Keeps ISO small — installs NVIDIA/CUDA only when RTX hardware is detected
@@ -386,9 +408,9 @@ mkdir -p /opt/antigravity /home/mbuser/.local/bin
 
 # 1. CLI: Official installer (writes to ~/.local/bin/agy)
 export HOME=/home/mbuser
-curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh 2>&1 || true
-if [ -f /tmp/agy-install.sh ]; then
-    bash /tmp/agy-install.sh 2>&1 || true
+rm -f /tmp/agy-install.sh
+if curl -fsSL https://antigravity.google/cli/install.sh -o /tmp/agy-install.sh; then
+    bash /tmp/agy-install.sh || true
     rm -f /tmp/agy-install.sh
 fi
 
@@ -396,7 +418,7 @@ fi
 if [ -f /home/mbuser/.local/bin/agy ]; then
     ln -sf /home/mbuser/.local/bin/agy /usr/local/bin/agy
     ln -sf /home/mbuser/.local/bin/agy /usr/local/bin/antigravity
-    echo "✅ Antigravity CLI (agy) installiert: $(agy --version 2>/dev/null || echo 'OK')"
+    echo "✅ Antigravity CLI (agy) installiert"
 else
     echo "⚠ agy CLI nicht gefunden — wird beim ersten Boot nachinstalliert"
 fi
@@ -423,6 +445,27 @@ fi
 
 # 3. Fix ownership
 chown -R mbuser:mbuser /home/mbuser/.local /home/mbuser/.cache 2>/dev/null || true
+
+# Antigravity Memory-System konfigurieren
+mkdir -p /home/mbuser/.gemini/memory/Skills
+mkdir -p /home/mbuser/.gemini/config
+
+cat > /home/mbuser/.gemini/config/AGENTS.md << 'AGENTS'
+# MB-OS Agent Rules
+
+## Sprache
+Antworte IMMER auf Deutsch.
+
+## Gedächtnissystem
+Lese bei Session-Start:
+- ~/.gemini/memory/Memory.md
+- ~/.gemini/memory/User.md
+- ~/.gemini/memory/Skills/
+
+Aktualisiere diese bei neuen Erkenntnissen.
+AGENTS
+
+chown -R mbuser:mbuser /home/mbuser/.gemini 2>/dev/null || true
 
 cd /
 
@@ -616,6 +659,91 @@ ln -sf /lib/systemd/system/NetworkManager.service /etc/systemd/system/multi-user
 ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service 2>/dev/null || true
 rm -f /etc/systemd/system/default.target
 ln -sf /lib/systemd/system/graphical.target /etc/systemd/system/default.target
+
+# Casper-Bottom Hook für SSH Auto-Start (zuverlässiger als systemctl enable)
+mkdir -p /usr/share/initramfs-tools/scripts/casper-bottom
+cat > /usr/share/initramfs-tools/scripts/casper-bottom/99-enable-ssh << 'SSHOOK'
+#!/bin/sh
+PREREQ=""
+prereqs() { echo "$PREREQ"; }
+case $1 in prereqs) prereqs; exit 0 ;; esac
+chroot "${rootmnt}" /bin/systemctl enable ssh.service 2>/dev/null || true
+chroot "${rootmnt}" /bin/systemctl enable ssh.socket 2>/dev/null || true
+if [ ! -f "${rootmnt}/etc/ssh/ssh_host_ed25519_key" ]; then
+    chroot "${rootmnt}" /usr/bin/ssh-keygen -A 2>/dev/null || true
+fi
+exit 0
+SSHOOK
+chmod +x /usr/share/initramfs-tools/scripts/casper-bottom/99-enable-ssh
+
+# Auch SSH Socket aktivieren (Ubuntu 24.04+)
+mkdir -p /etc/systemd/system/sockets.target.wants
+ln -sf /lib/systemd/system/ssh.socket /etc/systemd/system/sockets.target.wants/ssh.socket 2>/dev/null || true
+
+# SSH Host-Keys vorab generieren
+ssh-keygen -A 2>/dev/null || true
+
+# === PERFORMANCE (2GB RAM Celeron) ===
+# ZRAM Swap (komprimierter RAM-Swap)
+apt-get install -y zram-tools 2>/dev/null || true
+cat > /etc/default/zramswap << 'ZRAM'
+ALGO=zstd
+PERCENT=75
+PRIORITY=100
+ZRAM
+systemctl enable zramswap 2>/dev/null || true
+
+# Kernel-Parameter für wenig RAM
+cat > /etc/sysctl.d/99-mbos-performance.conf << 'SYSCTL'
+vm.swappiness=10
+vm.vfs_cache_pressure=50
+vm.dirty_ratio=15
+vm.dirty_background_ratio=5
+SYSCTL
+
+# Journald begrenzen
+mkdir -p /etc/systemd/journald.conf.d
+cat > /etc/systemd/journald.conf.d/size.conf << 'JOURNAL'
+[Journal]
+SystemMaxUse=50M
+RuntimeMaxUse=30M
+JOURNAL
+
+# WiFi Auto-Connect (iPhone Hotspot)
+mkdir -p /etc/NetworkManager/system-connections
+cat > /etc/NetworkManager/system-connections/iPhone-von-mic.nmconnection << 'WIFICFG'
+[connection]
+id=iPhone von mic
+type=wifi
+autoconnect=true
+autoconnect-priority=100
+
+[wifi]
+mode=infrastructure
+ssid=iPhone von mic
+
+[wifi-security]
+key-mgmt=wpa-psk
+psk=00070008
+
+[ipv4]
+method=auto
+
+[ipv6]
+method=auto
+WIFICFG
+chmod 600 /etc/NetworkManager/system-connections/iPhone-von-mic.nmconnection
+
+# NetworkManager: Alle Interfaces managen
+mkdir -p /etc/NetworkManager/conf.d
+cat > /etc/NetworkManager/conf.d/10-manage-all.conf << 'NMCONF'
+[device]
+wifi.scan-rand-mac-address=no
+[main]
+plugins=ifupdown,keyfile
+[ifupdown]
+managed=true
+NMCONF
 
 # Firewall: SSH + xrdp erlauben, rest blocken
 ufw default deny incoming
@@ -875,8 +1003,25 @@ DESKTOP
 # Create mb-browser as Firefox wrapper
 cat > /usr/local/bin/mb-browser << 'MBBROWSER'
 #!/bin/bash
-# MB Browser - Firefox-basiert
-exec firefox "$@"
+export DISPLAY=:0
+URL="about:blank"
+TOR=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --url) URL="$2"; shift 2;;
+        --tor) TOR=true; shift;;
+        *) URL="$1"; shift;;
+    esac
+done
+
+if [ "$TOR" = true ]; then
+    systemctl start tor 2>/dev/null
+    mkdir -p /home/mbuser/.mozilla/firefox/tor-profile
+    firefox --class="MBBrowser-Tor" --profile /home/mbuser/.mozilla/firefox/tor-profile -no-remote --new-instance "$URL" &
+else
+    firefox "$URL" &
+fi
 MBBROWSER
 chmod +x /usr/local/bin/mb-browser
 
@@ -1051,6 +1196,10 @@ if [ -f "$ROOTFS/home/mbuser/.local/bin/agy" ]; then
     echo "  ✓ agy CLI symlinked"
 fi
 
+# --- EFI Boot repair script safety net ---
+sudo cp "$PROJECT_DIR/config/fix-efi-boot.sh" "$ROOTFS/usr/local/bin/fix-efi-boot.sh"
+sudo chmod +x "$ROOTFS/usr/local/bin/fix-efi-boot.sh"
+
 # --- launch-antigravity ---
 sudo tee "$ROOTFS/usr/local/bin/launch-antigravity" > /dev/null << 'LAUNCHER'
 #!/bin/bash
@@ -1068,41 +1217,53 @@ LAUNCHER
 sudo tee "$ROOTFS/usr/local/bin/mb-browser" > /dev/null << 'MBBROWSER'
 #!/bin/bash
 export DISPLAY=:0
-TOR_MODE=false
-URL=""
-while [ $# -gt 0 ]; do
-    case $1 in
-        --tor) TOR_MODE=true; shift ;;
-        --url) URL="$2"; shift 2 ;;
-        *) URL="$1"; shift ;;
+URL="about:blank"
+TOR=false
+
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --url) URL="$2"; shift 2;;
+        --tor) TOR=true; shift;;
+        *) URL="$1"; shift;;
     esac
 done
-TOR_PROFILE="/home/mbuser/.mozilla/firefox/tor-profile"
-NORMAL_PROFILE="/home/mbuser/.mozilla/firefox/normal-profile"
-if [ "$TOR_MODE" = true ]; then
-    mkdir -p "$TOR_PROFILE"
-    cat > "$TOR_PROFILE/user.js" << 'TORPREFS'
-user_pref("network.proxy.type", 1);
-user_pref("network.proxy.socks", "127.0.0.1");
-user_pref("network.proxy.socks_port", 9050);
-user_pref("network.proxy.socks_version", 5);
-user_pref("network.proxy.socks_remote_dns", true);
-user_pref("privacy.resistFingerprinting", true);
-user_pref("browser.privatebrowsing.autostart", true);
-user_pref("browser.startup.homepage", "https://check.torproject.org");
-TORPREFS
-    [ -n "$URL" ] && firefox --no-remote --profile "$TOR_PROFILE" "$URL" & || firefox --no-remote --profile "$TOR_PROFILE" &
+
+if [ "$TOR" = true ]; then
+    systemctl start tor 2>/dev/null
+    mkdir -p /home/mbuser/.mozilla/firefox/tor-profile
+    firefox --class="MBBrowser-Tor" --profile /home/mbuser/.mozilla/firefox/tor-profile -no-remote --new-instance "$URL" &
 else
-    mkdir -p "$NORMAL_PROFILE"
-    [ -n "$URL" ] && firefox --profile "$NORMAL_PROFILE" "$URL" & || firefox --profile "$NORMAL_PROFILE" &
+    firefox "$URL" &
 fi
 MBBROWSER
 
-# --- launch-installer ---
+# --- Calamares Installer Konfiguration ---
+echo ">>> Calamares Installer konfigurieren..."
+sudo mkdir -p "$ROOTFS/etc/calamares/modules"
+sudo mkdir -p "$ROOTFS/etc/calamares/branding/mb-os"
+if [ -d "$PROJECT_DIR/calamares" ]; then
+    sudo cp "$PROJECT_DIR/calamares/settings.conf" "$ROOTFS/etc/calamares/settings.conf"
+    sudo cp "$PROJECT_DIR/calamares/modules/"*.conf "$ROOTFS/etc/calamares/modules/" 2>/dev/null || true
+    sudo cp "$PROJECT_DIR/calamares/branding/mb-os/branding.desc" "$ROOTFS/etc/calamares/branding/mb-os/" 2>/dev/null || true
+    # Logo für Calamares Branding
+    if [ -f "$PROJECT_DIR/config/watermark.png" ]; then
+        sudo cp "$PROJECT_DIR/config/watermark.png" "$ROOTFS/etc/calamares/branding/mb-os/logo.png"
+    fi
+    echo "  ✓ Calamares Konfiguration kopiert"
+fi
+
+# --- launch-installer (Calamares mit Fallback) ---
 sudo tee "$ROOTFS/usr/local/bin/launch-installer" > /dev/null << 'INST'
 #!/bin/bash
 export DISPLAY=:0
-[ -x /usr/local/bin/mb-installer ] && sudo /usr/local/bin/mb-installer || echo "Installer nicht gefunden!"
+export TERM=xterm-256color
+if command -v calamares &>/dev/null; then
+    sudo calamares &
+elif [ -x /usr/local/bin/mb-installer ]; then
+    xterm -fa Monospace -fs 11 -bg '#0a0c16' -fg '#d1d5db' -T 'MB-OS Installer' -maximized -e sudo /usr/local/bin/mb-installer
+else
+    xterm -e bash -c 'echo Installer nicht gefunden!; read'
+fi
 INST
 
 # --- launch-android ---
@@ -1185,7 +1346,7 @@ set color_normal=light-cyan/black
 set color_highlight=white/blue
 
 menuentry "  MB-OS - Starten  " {
-    linux /casper/vmlinuz boot=casper username=mbuser hostname=MB-OS nomodeset video=hyperv_fb:1920x1080 console=tty1 console=ttyS0 systemd.journald.forward_to_console=1 ---
+    linux /casper/vmlinuz boot=casper username=mbuser hostname=MB-OS nomodeset mitigations=off nowatchdog nmi_watchdog=0 console=tty1 ---
     initrd /casper/initrd.img
 }
 

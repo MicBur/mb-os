@@ -1,60 +1,20 @@
 #!/bin/bash
-# MB-Browser — Firefox mit Tor-Toggle
-# Nutzung:
-#   mb-browser                    → Normal-Modus
-#   mb-browser --tor              → Tor-Modus (Darkweb/.onion)
-#   mb-browser --url <URL>        → URL im Normal-Modus oeffnen
-#   mb-browser --tor --url <URL>  → URL ueber Tor oeffnen
-
 export DISPLAY=:0
-TOR_MODE=false
-URL=""
+URL="about:blank"
+TOR=false
 
-# Args parsen
-while [ $# -gt 0 ]; do
-    case $1 in
-        --tor) TOR_MODE=true; shift ;;
-        --url) URL="$2"; shift 2 ;;
-        *) URL="$1"; shift ;;
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --url) URL="$2"; shift 2;;
+        --tor) TOR=true; shift;;
+        *) URL="$1"; shift;;
     esac
 done
 
-# Separate Profile fuer Isolation
-TOR_PROFILE_DIR="/home/mbuser/.mozilla/firefox/tor-profile"
-NORMAL_PROFILE_DIR="/home/mbuser/.mozilla/firefox/normal-profile"
-
-if [ "$TOR_MODE" = true ]; then
-    mkdir -p "$TOR_PROFILE_DIR"
-    
-    # Firefox Tor-Config
-    cat > "$TOR_PROFILE_DIR/user.js" << 'TORPREFS'
-// Tor SOCKS5 Proxy
-user_pref("network.proxy.type", 1);
-user_pref("network.proxy.socks", "127.0.0.1");
-user_pref("network.proxy.socks_port", 9050);
-user_pref("network.proxy.socks_version", 5);
-user_pref("network.proxy.socks_remote_dns", true);
-user_pref("network.proxy.no_proxies_on", "");
-// Privacy hardening
-user_pref("privacy.resistFingerprinting", true);
-user_pref("privacy.trackingprotection.enabled", true);
-user_pref("browser.privatebrowsing.autostart", true);
-user_pref("dom.security.https_only_mode", true);
-user_pref("browser.startup.homepage", "https://check.torproject.org");
-TORPREFS
-    
-    echo "[MB-Browser] Tor-Modus aktiv (SOCKS5 127.0.0.1:9050)"
-    if [ -n "$URL" ]; then
-        firefox --no-remote --profile "$TOR_PROFILE_DIR" "$URL" &
-    else
-        firefox --no-remote --profile "$TOR_PROFILE_DIR" &
-    fi
+if [ "$TOR" = true ]; then
+    systemctl start tor 2>/dev/null
+    mkdir -p /home/mbuser/.mozilla/firefox/tor-profile
+    firefox --class="MBBrowser-Tor" --profile /home/mbuser/.mozilla/firefox/tor-profile -no-remote --new-instance "$URL" &
 else
-    mkdir -p "$NORMAL_PROFILE_DIR"
-    echo "[MB-Browser] Normal-Modus"
-    if [ -n "$URL" ]; then
-        firefox --profile "$NORMAL_PROFILE_DIR" "$URL" &
-    else
-        firefox --profile "$NORMAL_PROFILE_DIR" &
-    fi
+    firefox "$URL" &
 fi

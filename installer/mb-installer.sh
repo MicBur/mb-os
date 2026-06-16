@@ -528,6 +528,45 @@ HOSTS
     echo "${INSTALL_USERNAME}:${INSTALL_PASSWORD}" | chroot "$TARGET" chpasswd >> "$LOG_FILE" 2>&1 || true
     chroot "$TARGET" usermod -aG sudo,video,audio,plugdev "$INSTALL_USERNAME" >> "$LOG_FILE" 2>&1 || true
 
+    # GUI Auto-Start: .profile mit xinit
+    cat > "$TARGET/home/$INSTALL_USERNAME/.profile" << 'XPROFILE'
+# ~/.profile: executed by the command interpreter for login shells.
+
+# set PATH so it includes user's private bin if it exists
+if [ -d "$HOME/bin" ] ; then
+    PATH="$HOME/bin:$PATH"
+fi
+if [ -d "$HOME/.local/bin" ] ; then
+    PATH="$HOME/.local/bin:$PATH"
+fi
+
+# Starte GUI automatisch auf tty1
+if [ -z "$DISPLAY" ] && [ "$(tty)" = "/dev/tty1" ]; then
+    exec sudo /usr/bin/xinit /etc/mb-os/mb-os-xinitrc -- -keeptty vt1 2>/dev/null
+fi
+XPROFILE
+    chroot "$TARGET" chown "$INSTALL_USERNAME:$INSTALL_USERNAME" "/home/$INSTALL_USERNAME/.profile" >> "$LOG_FILE" 2>&1 || true
+
+    # xinitrc sicherstellen
+    mkdir -p "$TARGET/etc/mb-os"
+    if [ -f /etc/mb-os/mb-os-xinitrc ]; then
+        cp /etc/mb-os/mb-os-xinitrc "$TARGET/etc/mb-os/mb-os-xinitrc"
+        chmod +x "$TARGET/etc/mb-os/mb-os-xinitrc"
+    fi
+
+    # SSH-Key kopieren
+    mkdir -p "$TARGET/home/$INSTALL_USERNAME/.ssh"
+    if [ -f /home/mbuser/.ssh/authorized_keys ]; then
+        cp /home/mbuser/.ssh/authorized_keys "$TARGET/home/$INSTALL_USERNAME/.ssh/"
+    fi
+    chmod 700 "$TARGET/home/$INSTALL_USERNAME/.ssh"
+    chmod 600 "$TARGET/home/$INSTALL_USERNAME/.ssh/authorized_keys" 2>/dev/null || true
+    chroot "$TARGET" chown -R "$INSTALL_USERNAME:$INSTALL_USERNAME" "/home/$INSTALL_USERNAME/.ssh" >> "$LOG_FILE" 2>&1 || true
+
+    # NOPASSWD für xinit (GUI-Autostart ohne Passwort!)
+    echo "$INSTALL_USERNAME ALL=(ALL) NOPASSWD: /usr/bin/xinit" > "$TARGET/etc/sudoers.d/mb-os-gui"
+    chmod 440 "$TARGET/etc/sudoers.d/mb-os-gui"
+
     # Auto-login
     mkdir -p "$TARGET/etc/systemd/system/getty@tty1.service.d"
     cat > "$TARGET/etc/systemd/system/getty@tty1.service.d/autologin.conf" << AUTOLOGIN
@@ -582,17 +621,81 @@ FSTAB
     log "Installing GRUB..."
 
     if [ -d /sys/firmware/efi ]; then
-        chroot "$TARGET" grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=MB-OS --recheck >> "$LOG_FILE" 2>&1 || true
-        # UEFI Fallback
+        # === BULLETPROOF UEFI BOOT INSTALLATION ===
+        log "EFI mode detected — using bulletproof triple-fallback strategy"
+        
+        # 1. EFI-Variablen mounten
+        mkdir -p "$TARGET/sys/firmware/efi/efivars"
+        mount -t efivarfs efivarfs "$TARGET/sys/firmware/efi/efivars" 2>/dev/null || \
+        mount --bind /sys/firmware/efi/efivars "$TARGET/sys/firmware/efi/efivars" 2>/dev/null || true
+        
+        # 2. Pakete sicherstellen
+        chroot "$TARGET" apt-get install -y --no-install-recommends \
+            grub-efi-amd64 grub-efi-amd64-bin efibootmgr >> "$LOG_FILE" 2>&1 || true
+        
+        # 3a. Normaler GRUB Install (NVRAM-Eintrag)
+        log "GRUB install: normal with bootloader-id=MB-OS"
+        chroot "$TARGET" grub-install \
+            --target=x86_64-efi \
+            --efi-directory=/boot/efi \
+            --bootloader-id=MB-OS \
+            --recheck >> "$LOG_FILE" 2>&1 || true
+        
+        # 3b. ZUSÄTZLICH: --removable Install (KRITISCH für Acer!)
+        # Installiert direkt nach EFI/BOOT/BOOTX64.EFI
+        log "GRUB install: --removable (Acer fallback)"
+        chroot "$TARGET" grub-install \
+            --target=x86_64-efi \
+            --efi-directory=/boot/efi \
+            --removable \
+            --recheck >> "$LOG_FILE" 2>&1 || true
+        
+        # 3c. TRIPLE-SAFETY: Manuell kopieren falls grub-install beides nicht geschafft hat
         mkdir -p "$TARGET/boot/efi/EFI/BOOT"
-        cp "$TARGET/boot/efi/EFI/MB-OS/grubx64.efi" "$TARGET/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null || true
+        mkdir -p "$TARGET/boot/efi/EFI/MB-OS"
+        for src in "$TARGET/boot/efi/EFI/MB-OS/grubx64.efi" \
+                   "$TARGET/boot/efi/EFI/ubuntu/grubx64.efi" \
+                   "$TARGET/usr/lib/grub/x86_64-efi-signed/grubx64.efi.signed" \
+                   "$TARGET/usr/lib/grub/x86_64-efi/monolithic/grubx64.efi"; do
+            if [ -f "$src" ]; then
+                cp "$src" "$TARGET/boot/efi/EFI/BOOT/BOOTX64.EFI" 2>/dev/null || true
+                cp "$src" "$TARGET/boot/efi/EFI/MB-OS/grubx64.efi" 2>/dev/null || true
+                log "Copied EFI binary from: $src"
+                break
+            fi
+        done
+        
+        # 4. Redirect grub.cfg in ALLE Verzeichnisse
+        local root_uuid_grub=$(blkid -s UUID -o value "$root_part")
+        for grubdir in "$TARGET/boot/efi/EFI/MB-OS" "$TARGET/boot/efi/EFI/BOOT"; do
+            mkdir -p "$grubdir"
+            cat > "$grubdir/grub.cfg" << EFIGRUB
+search.fs_uuid $root_uuid_grub root
+set prefix=(\$root)/boot/grub
+configfile \$prefix/grub.cfg
+EFIGRUB
+        done
+        
+        # 5. NVRAM-Eintrag manuell setzen
+        if command -v efibootmgr >/dev/null 2>&1; then
+            local efi_disk=$(echo "$efi_part" | sed 's/[0-9]*$//')
+            local efi_partnum=$(echo "$efi_part" | grep -oE '[0-9]+$')
+            efibootmgr --create --disk "$efi_disk" --part "$efi_partnum" \
+                --label "MB-OS" --loader '\EFI\MB-OS\grubx64.efi' 2>/dev/null || true
+        fi
+        
+        # 6. Debug-Info loggen
+        log "=== EFI Partition Contents ==="
+        find "$TARGET/boot/efi/EFI" -type f >> "$LOG_FILE" 2>&1 || true
+        efibootmgr -v >> "$LOG_FILE" 2>&1 || true
+        
+        log "EFI GRUB installed (normal + removable + manual fallback)"
     else
         chroot "$TARGET" grub-install --target=i386-pc "$INSTALL_DISK" >> "$LOG_FILE" 2>&1 || true
     fi
 
-    # Enable os-prober for dual-boot detection
+    # os-prober für Dual-Boot
     echo "GRUB_DISABLE_OS_PROBER=false" >> "$TARGET/etc/default/grub"
-
     chroot "$TARGET" update-grub >> "$LOG_FILE" 2>&1 || true
 
     echo "95"
@@ -651,7 +754,14 @@ do_partition_auto() {
         root_part="${INSTALL_DISK}p$( [ -d /sys/firmware/efi ] && echo 3 || echo 2)"
     fi
 
-    sleep 1
+    partprobe "$INSTALL_DISK" 2>/dev/null || true
+    sleep 3
+    # Wait for device nodes
+    for i in 1 2 3 4 5; do
+        [ -b "$root_part" ] && break
+        sleep 1
+        partprobe "$INSTALL_DISK" 2>/dev/null || true
+    done
     [ -n "$efi_part" ] && mkfs.fat -F32 "$efi_part" >> "$LOG_FILE" 2>&1
     mkswap "$swap_part" >> "$LOG_FILE" 2>&1
     mkfs.ext4 -F "$root_part" >> "$LOG_FILE" 2>&1
@@ -719,7 +829,8 @@ do_partition_alongside() {
     # Root (rest)
     parted -s "$INSTALL_DISK" mkpart primary ext4 "${free_start}MiB" 100% >> "$LOG_FILE" 2>&1
 
-    sleep 1
+    partprobe "$INSTALL_DISK" 2>/dev/null || true
+    sleep 3
 
     # Find new partitions
     local all_parts=$(lsblk -n -o NAME "$INSTALL_DISK" 2>/dev/null | grep -v "^$(basename $INSTALL_DISK)$")
@@ -766,7 +877,13 @@ step_done() {
   Beim naechsten Start kannst du zwischen
   MB-OS und Windows waehlen (GRUB Menu).
 
-  Jetzt neu starten?" 18 50 \
+  Falls der PC nicht bootet:
+  1. BIOS (F2) > Secure Boot > AUS
+  2. BIOS > Select UEFI file as trusted
+     > EFI/MB-OS/grubx64.efi
+  3. Boot-Reihenfolge: MB-OS an 1. Stelle
+
+  Jetzt neu starten?" 24 55 \
     --yes-button "Neu starten" --no-button "Weiter testen"
 
     [ $? -eq 0 ] && reboot

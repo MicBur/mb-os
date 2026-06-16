@@ -117,3 +117,53 @@ void ThemeManager::loadTheme() {
 
     emit themeChanged();
 }
+
+void ThemeManager::setTheme(const QString &themeName) {
+    qDebug() << "ThemeManager: Setting theme:" << themeName;
+    
+    int hue;
+    if (themeName == "Cyber") {
+        m_accentColor = "#f820c2";
+        m_secondaryColor = "#00f0ff";
+        hue = 315; // Magenta
+    } else if (themeName == "Ocean") {
+        m_accentColor = "#10b981";
+        m_secondaryColor = "#3b82f6";
+        hue = 160; // Teal
+    } else { // Dark (default)
+        m_accentColor = "#00f0ff";
+        m_secondaryColor = "#bd00ff";
+        hue = 186; // Cyan
+    }
+    
+    // Recalculate glass colors from accent hue
+    QColor glassBg = QColor::fromHsl(hue, 40, 18);
+    m_glassBgColor = QString("#8c%1%2%3")
+        .arg(glassBg.red(), 2, 16, QChar('0'))
+        .arg(glassBg.green(), 2, 16, QChar('0'))
+        .arg(glassBg.blue(), 2, 16, QChar('0'));
+    
+    QColor glassBorder = QColor::fromHsl(hue, 80, 80);
+    m_glassBorderColor = QString("#2d%1%2%3")
+        .arg(glassBorder.red(), 2, 16, QChar('0'))
+        .arg(glassBorder.green(), 2, 16, QChar('0'))
+        .arg(glassBorder.blue(), 2, 16, QChar('0'));
+    
+    QColor glow1 = QColor::fromHsl(hue, 255, 128);
+    m_glowColor = QString("#20%1%2%3")
+        .arg(glow1.red(), 2, 16, QChar('0'))
+        .arg(glow1.green(), 2, 16, QChar('0'))
+        .arg(glow1.blue(), 2, 16, QChar('0'));
+    
+    QColor glow2 = QColor::fromHsl((hue + 120) % 360, 255, 128);
+    m_glowColor2 = QString("#18%1%2%3")
+        .arg(glow2.red(), 2, 16, QChar('0'))
+        .arg(glow2.green(), 2, 16, QChar('0'))
+        .arg(glow2.blue(), 2, 16, QChar('0'));
+    
+    qDebug() << "ThemeManager: Theme set:" << themeName
+             << "Accent:" << m_accentColor
+             << "Secondary:" << m_secondaryColor;
+    
+    emit themeChanged();
+}

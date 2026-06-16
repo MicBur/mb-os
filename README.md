@@ -1,63 +1,125 @@
-# MB-OS
+# MB-OS — Custom Linux Desktop Distribution
 
-> Ein schlankes, sicheres Linux-Betriebssystem mit Qt6/QML Desktop-Shell, AI-Gedächtnissystem und Privacy-Features.
+> Ein intelligentes, modernes Linux-Betriebssystem mit Qt6/QML Desktop-Shell, AI-Integration und Glassmorphism-Design.
 
-![License](https://img.shields.io/badge/License-MIT-blue.svg)
-![Ubuntu](https://img.shields.io/badge/Base-Ubuntu%2024.04-orange.svg)
-![Qt6](https://img.shields.io/badge/Desktop-Qt6%20QML-green.svg)
+![MB-OS](gui/assets/wallpaper.png)
 
 ## Features
 
-- 🖥️ **Qt6/QML Desktop Shell** — Glassmorphism-Design mit App Drawer
-- 🧠 **AI Gedächtnissystem** — Lokaler Memory Daemon (Markdown + SQLite)
-- 🦊 **MB Browser** — Firefox-basiert, RAM-sparend
-- 🔒 **Privacy** — Tor, Firewall (UFW), Bildschirmsperre
-- 🤖 **Android Apps** — Waydroid + Google Play (on-demand)
-- 🔊 **Audio** — PipeWire + WirePlumber
-- 📶 **WiFi/Bluetooth** — NetworkManager, BlueZ
-- 🖨️ **Drucker** — CUPS Support
-- 📦 **App Store** — Flatpak + Flathub
-- 🎬 **Multimedia** — mpv, feh, zathura, scrot
-- ⬇️ **Installer** — TUI mit Hardware-Erkennung, UEFI Boot
-- 🌍 **Deutsch** — Locale, Tastatur, Timezone Europe/Berlin
-- 💻 **Developer Tools** — git, Node.js, Python3, Vulkan SDK
-- 🚀 **Antigravity** — Desktop App + CLI (`agy`)
+### 🖥️ Desktop Shell (Qt6/QML)
+- **Glassmorphism Design** mit HSL-basiertem Wallpaper-Color-Extraction (automatische Theme-Anpassung)
+- **App Drawer** mit 25+ vorinstallierten Apps
+- **System Monitor** in der Topbar: CPU, RAM, GPU, Temperatur
+- **Per-Core CPU Overlay** — klickbar für detaillierte Kernauslastung
+- **Micro-Animationen**, Hover-Effekte, dynamische Farbpaletten
+- **Kontextmenü** (Rechtsklick auf Desktop)
+- **Bildschirmsperre** (i3lock)
 
-## Systemanforderungen
+### 🌐 Web & Apps
+- **MB Browser** (Firefox-basiert mit Wrapper-Script)
+- **Tor/Darkweb** Toggle (`--tor` Flag, SOCKS5 Proxy, separates Profil)
+- **WhatsApp Web** — direkt aus dem App Drawer
+- **Google Maps** — Web-App Integration
+- **OOONO** — Verkehrswarner Web-App
+- **ChatGPT, GitHub, YouTube** — Quick-Launch aus dem Drawer
 
-| | Minimum | Empfohlen |
-|---|---|---|
-| **RAM** | 512 MB | 4 GB |
-| **Disk** | 8 GB | 20 GB |
-| **CPU** | x86_64 | x86_64 |
-| **GPU** | Integrated | NVIDIA RTX (CUDA) |
+### 🤖 AI Integration
+- **Antigravity CLI** (`agy`) — Google Gemini AI Agent
+- **Antigravity Desktop App** (Electron)
+- **Memory Daemon** — SQLite + Markdown basiertes Langzeitgedächtnis
+
+### 📱 Android (Waydroid)
+- **Waydroid** für Android-App-Emulation (auf kompatiblen Systemen)
+- **Weston** als Wayland-Compositor
+- Kernel Binder-Modul Unterstützung
+
+### 🔧 System
+- **UEFI Boot** mit GRUB Theme (Cyan/Blau Design)
+- **Calamares Installer** mit automatischem GRUB-Repair
+- **SSH Server** (Key-Auth vorinstalliert)
+- **xRDP** Remote Desktop
+- **WiFi** (NetworkManager + wpa_supplicant)
+- **Bluetooth** (BlueZ)
+- **Audio** (PipeWire + WirePlumber)
+- **USB Automount** (udisks2)
+- **Firewall** (UFW)
+- **Flatpak + Flathub**
+
+### 🎮 Hardware-Support
+- **NVIDIA CUDA/RTX** (nvidia-driver-560 + cuda-toolkit)
+- **Intel HD Graphics** (i915, GPU-Monitoring)
+- **OpenVINO + ONNX Runtime** (CPU AI Inference)
+- **Vulkan SDK**
+
+## Technischer Stack
+
+| Komponente | Technologie |
+|---|---|
+| Basis | Ubuntu 26.04 (Resolute) |
+| Desktop Shell | Qt6 6.10.2 / QML / C++ |
+| AI Backend | Python FastAPI + SQLite |
+| Browser | Firefox .deb (PPA mozillateam) |
+| Privacy | Tor, SOCKS5 Proxy |
+| Audio | PipeWire + WirePlumber |
+| Init | systemd |
+| Kernel | 7.0.x |
 
 ## Build
 
+### Voraussetzungen
+- Windows 11 mit WSL2 (Ubuntu 26.04)
+- ~20 GB freier Speicher
+- Qt6 Development Packages in WSL
+
+### ISO bauen
 ```bash
-# In WSL2 (Ubuntu)
+# In WSL2:
+cd /mnt/d/MB-OS
 sudo bash build_iso.sh
 ```
 
-Die ISO wird als `mb-os.iso` im Projektverzeichnis erstellt (~2 GB).
+### Schnelles ISO-Patching (3 Min statt 15 Min)
+```bash
+sudo bash patch_iso.sh
+```
 
-## Hyper-V testen
+### Shell kompilieren
+```bash
+cd /mnt/d/MB-OS/gui
+mkdir -p build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
 
+### USB-Stick schreiben (PowerShell als Admin)
 ```powershell
-# Gen2 UEFI VM erstellen + starten (als Admin)
-powershell -ExecutionPolicy Bypass -File start_hyperv.ps1
+.\write_usb.ps1
 ```
 
 ## Installation
 
-1. Von ISO booten (USB-Stick oder VM)
-2. App Drawer → **"Installieren"**
-3. Sprache, User, Passwort, Disk auswählen
-4. Nach Installation: Boot-Reihenfolge auf Festplatte ändern
+1. USB-Stick erstellen mit `write_usb.ps1`
+2. Von USB booten (UEFI)
+3. **Calamares** Installer starten (im App Drawer)
+4. Nach Installation: System bootet automatisch mit GRUB
 
-```powershell
-# Hyper-V: Boot von Festplatte
-powershell -ExecutionPolicy Bypass -File boot_from_disk.ps1
+### UEFI Boot Fix
+Falls das System nach Installation nicht bootet:
+```bash
+# Von USB-Stick booten, dann:
+sudo mount /dev/sdaX /mnt
+sudo mount /dev/sdaY /mnt/boot/efi
+sudo chroot /mnt
+apt install grub-efi-amd64 grub-efi-amd64-bin efibootmgr
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --removable
+update-grub
+```
+
+## Remote Deployment (SSH)
+```bash
+# Shell-Binary deployen:
+scp mb-os-shell mbuser@<IP>:/tmp/
+ssh mbuser@<IP> "sudo killall mb-os-shell; sudo cp /tmp/mb-os-shell /usr/local/bin/; sudo chmod +x /usr/local/bin/mb-os-shell"
 ```
 
 ## Projektstruktur
@@ -65,34 +127,36 @@ powershell -ExecutionPolicy Bypass -File boot_from_disk.ps1
 ```
 MB-OS/
 ├── build_iso.sh          # Haupt-Build-Script
-├── start_hyperv.ps1      # Hyper-V Gen2 VM erstellen
-├── boot_from_disk.ps1    # Boot von Festplatte
-├── gui/
-│   ├── main.qml          # Desktop Shell (QML)
-│   ├── main.cpp          # Qt6 Entry Point
-│   └── CMakeLists.txt    # Build Config
-├── browser/
-│   ├── main.qml          # Qt WebEngine Browser
-│   ├── main.cpp          # Browser Entry Point
-│   └── CMakeLists.txt
-├── daemon/
-│   └── memory_daemon.py  # AI Memory Daemon
-├── installer/
-│   ├── mb-installer.sh   # System Installer
-│   └── fix-grub.sh       # GRUB Reparatur
-├── config/
-│   ├── mb-os-xinitrc     # X11 Session Config
-│   └── grub-theme/       # GRUB Bootloader Theme
-└── wallpapers/           # Desktop Hintergrundbilder
+├── patch_iso.sh          # Schnelles ISO-Patching
+├── patch_calamares.sh    # Calamares + GRUB Fix
+├── write_usb.ps1         # USB-Stick Flasher
+├── gui/                  # Qt6/QML Desktop Shell
+│   ├── main.cpp          # SystemMonitor (CPU/RAM/GPU/Temp)
+│   ├── main.qml          # Desktop UI + App Drawer
+│   ├── ThemeManager.cpp  # Wallpaper Color Extraction
+│   └── assets/           # Wallpaper, Icons
+├── config/               # System-Konfiguration
+│   ├── mb-os-xinitrc     # X11 Autostart
+│   ├── mb-browser        # Firefox Wrapper + Tor
+│   └── fix-efi-boot.sh   # GRUB Repair Script
+├── calamares/            # Installer-Konfiguration
+├── installer/            # TUI Installer
+├── grub-theme/           # GRUB Boot Theme
+└── daemon/               # Memory Daemon (Python)
 ```
 
-## SSH Zugang
+## Hardware-Zielgeräte
 
-```bash
-ssh mbuser@<IP>
-# Passwort: mbos
-```
+| Gerät | CPU | RAM | GPU | Status |
+|---|---|---|---|---|
+| Acer Laptop | i3-5005U | 4 GB | Intel HD 5500 | ✅ Läuft |
+| Desktop PC | diverse | 16+ GB | RTX | ✅ Unterstützt |
+| Low-End | Celeron | 2+ GB | Intel | ✅ Unterstützt |
 
 ## Lizenz
 
-MIT License
+MIT
+
+## Autor
+
+**MicBur** — [github.com/MicBur](https://github.com/MicBur)

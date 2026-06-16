@@ -30,7 +30,6 @@ ApplicationWindow {
             y: -150
             scale: 1.5
             opacity: 0.3
-            layer.enabled: true
         }
 
         // Decorative subtle neon glow in the bottom-left
@@ -43,7 +42,6 @@ ApplicationWindow {
             y: parent.height - 250
             scale: 1.5
             opacity: 0.25
-            layer.enabled: true
         }
     }
 
@@ -99,36 +97,53 @@ ApplicationWindow {
                     anchors.verticalCenter: parent.verticalCenter
                 }
 
-                // CPU Usage
-                Row {
-                    spacing: 8
-                    anchors.verticalCenter: parent.verticalCenter
-                    Text {
-                        text: "CPU"
-                        color: "#a0a5c0"
-                        font.pixelSize: 13
-                        font.bold: true
-                    }
-                    Rectangle {
-                        width: 120
-                        height: 8
-                        color: themeManager.glassBorderColor
-                        radius: 4
+                // CPU Usage (clickable to toggle overlay)
+                Item {
+                    width: cpuRow.width
+                    height: parent.height
+                    Row {
+                        id: cpuRow
+                        spacing: 8
                         anchors.verticalCenter: parent.verticalCenter
+                        Text {
+                            text: "CPU"
+                            color: "#a0a5c0"
+                            font.pixelSize: 13
+                            font.bold: true
+                        }
                         Rectangle {
-                            width: parent.width * (systemMonitor.cpuUsage / 100.0)
-                            height: parent.height
-                            color: systemMonitor.cpuUsage > 80 ? "#ff4060" : themeManager.accentColor
+                            width: 120
+                            height: 8
+                            color: themeManager.glassBorderColor
                             radius: 4
-                            Behavior on width { NumberAnimation { duration: 300 } }
+                            anchors.verticalCenter: parent.verticalCenter
+                            Rectangle {
+                                width: parent.width * (systemMonitor.cpuUsage / 100.0)
+                                height: parent.height
+                                color: systemMonitor.cpuUsage > 80 ? "#ff4060" : themeManager.accentColor
+                                radius: 4
+                                Behavior on width { NumberAnimation { duration: 300 } }
+                            }
+                        }
+                        Text {
+                            text: Math.round(systemMonitor.cpuUsage) + "%"
+                            color: "#ffffff"
+                            font.pixelSize: 13
+                            font.bold: true
+                            width: 35
+                        }
+                        // Temp indicator
+                        Text {
+                            text: systemMonitor.cpuTempC > 0 ? Math.round(systemMonitor.cpuTempC) + "°" : ""
+                            color: systemMonitor.cpuTempC > 80 ? "#ff4060" : "#a0a5c0"
+                            font.pixelSize: 11
+                            anchors.verticalCenter: parent.verticalCenter
                         }
                     }
-                    Text {
-                        text: Math.round(systemMonitor.cpuUsage) + "%"
-                        color: "#ffffff"
-                        font.pixelSize: 13
-                        font.bold: true
-                        width: 35
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: sysOverlay.visible = !sysOverlay.visible
+                        cursorShape: Qt.PointingHandCursor
                     }
                 }
 
@@ -158,6 +173,40 @@ ApplicationWindow {
                     }
                     Text {
                         text: Math.round(systemMonitor.memUsage) + "%"
+                        color: "#ffffff"
+                        font.pixelSize: 13
+                        font.bold: true
+                        width: 35
+                    }
+                }
+
+                // GPU in topbar
+                Row {
+                    spacing: 8
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: systemMonitor.gpuUsage > 0
+                    Text {
+                        text: "GPU"
+                        color: "#a0a5c0"
+                        font.pixelSize: 13
+                        font.bold: true
+                    }
+                    Rectangle {
+                        width: 80
+                        height: 8
+                        color: themeManager.glassBorderColor
+                        radius: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        Rectangle {
+                            width: parent.width * (systemMonitor.gpuUsage / 100.0)
+                            height: parent.height
+                            color: systemMonitor.gpuUsage > 80 ? "#ff4060" : "#a78bfa"
+                            radius: 4
+                            Behavior on width { NumberAnimation { duration: 300 } }
+                        }
+                    }
+                    Text {
+                        text: Math.round(systemMonitor.gpuUsage) + "%"
                         color: "#ffffff"
                         font.pixelSize: 13
                         font.bold: true
@@ -255,32 +304,249 @@ ApplicationWindow {
         }
     }
 
+    // ===== System Monitor Overlay Panel =====
+    Rectangle {
+        id: sysOverlay
+        visible: false
+        width: 340
+        height: overlayCol.implicitHeight + 32
+        x: 100
+        anchors.top: topBar.bottom
+        anchors.topMargin: 4
+        z: 900
+        color: themeManager.glassBgColor
+        border.color: themeManager.glassBorderColor
+        border.width: 1
+        radius: 16
+        opacity: visible ? 1.0 : 0.0
+        Behavior on opacity { NumberAnimation { duration: 200 } }
+
+        // Close when clicking outside
+        MouseArea {
+            anchors.fill: parent
+            // Consume clicks so they don't go through
+        }
+
+        Column {
+            id: overlayCol
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: 12
+
+            // Header
+            Row {
+                spacing: 10
+                Text {
+                    text: "System Monitor"
+                    color: themeManager.accentColor
+                    font.pixelSize: 16
+                    font.bold: true
+                }
+                Text {
+                    text: systemMonitor.cpuTempC > 0 ? Math.round(systemMonitor.cpuTempC) + " °C" : ""
+                    color: systemMonitor.cpuTempC > 80 ? "#ff4060" : "#a0a5c0"
+                    font.pixelSize: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Item { width: 120; height: 1 }
+                Text {
+                    text: "✕"
+                    color: "#a0a5c0"
+                    font.pixelSize: 16
+                    MouseArea {
+                        anchors.fill: parent
+                        onClicked: sysOverlay.visible = false
+                        cursorShape: Qt.PointingHandCursor
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle { width: parent.width - 32; height: 1; color: themeManager.glassBorderColor }
+
+            // CPU Cores Header
+            Text {
+                text: "CPU Kerne (" + systemMonitor.coreCount + ")"
+                color: "#a0a5c0"
+                font.pixelSize: 12
+                font.bold: true
+            }
+
+            // Per-core bars
+            Grid {
+                columns: 2
+                columnSpacing: 12
+                rowSpacing: 6
+                width: parent.width - 32
+
+                Repeater {
+                    model: systemMonitor.coreUsages
+                    Row {
+                        spacing: 6
+                        width: 145
+                        Text {
+                            text: "C" + index
+                            color: "#808590"
+                            font.pixelSize: 11
+                            width: 22
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                        Rectangle {
+                            width: 85
+                            height: 10
+                            color: "#20ffffff"
+                            radius: 5
+                            anchors.verticalCenter: parent.verticalCenter
+                            Rectangle {
+                                width: parent.width * (modelData / 100.0)
+                                height: parent.height
+                                radius: 5
+                                color: modelData > 90 ? "#ff4060" : modelData > 60 ? "#f59e0b" : themeManager.accentColor
+                                Behavior on width { NumberAnimation { duration: 300 } }
+                            }
+                        }
+                        Text {
+                            text: Math.round(modelData) + "%"
+                            color: "#ffffff"
+                            font.pixelSize: 11
+                            width: 30
+                            anchors.verticalCenter: parent.verticalCenter
+                        }
+                    }
+                }
+            }
+
+            // Separator
+            Rectangle { width: parent.width - 32; height: 1; color: themeManager.glassBorderColor }
+
+            // GPU Section
+            Text {
+                text: systemMonitor.gpuName
+                color: "#a0a5c0"
+                font.pixelSize: 12
+                font.bold: true
+            }
+            Row {
+                spacing: 8
+                Text {
+                    text: "Auslastung"
+                    color: "#808590"
+                    font.pixelSize: 11
+                    width: 65
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Rectangle {
+                    width: 180
+                    height: 10
+                    color: "#20ffffff"
+                    radius: 5
+                    anchors.verticalCenter: parent.verticalCenter
+                    Rectangle {
+                        width: parent.width * (systemMonitor.gpuUsage / 100.0)
+                        height: parent.height
+                        radius: 5
+                        color: systemMonitor.gpuUsage > 80 ? "#ff4060" : "#a78bfa"
+                        Behavior on width { NumberAnimation { duration: 300 } }
+                    }
+                }
+                Text {
+                    text: Math.round(systemMonitor.gpuUsage) + "%"
+                    color: "#ffffff"
+                    font.pixelSize: 11
+                    width: 35
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            // Separator
+            Rectangle { width: parent.width - 32; height: 1; color: themeManager.glassBorderColor }
+
+            // Summary line
+            Row {
+                spacing: 15
+                Text {
+                    text: "CPU " + Math.round(systemMonitor.cpuUsage) + "%"
+                    color: themeManager.accentColor
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+                Text {
+                    text: "RAM " + Math.round(systemMonitor.memUsage) + "%"
+                    color: themeManager.secondaryColor
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+                Text {
+                    text: "GPU " + Math.round(systemMonitor.gpuUsage) + "%"
+                    color: "#a78bfa"
+                    font.pixelSize: 12
+                    font.bold: true
+                }
+            }
+        }
+    }
+
     // Main Workspace Area
     Item {
         anchors.top: topBar.bottom
         anchors.bottom: parent.bottom
         width: parent.width
 
-        // Big Clock in the Center
+        // Big Desktop Clock
         Column {
             anchors.centerIn: parent
-            spacing: 10
+            anchors.verticalCenterOffset: -40
+            spacing: 8
 
             Text {
-                text: "MB-OS"
-                font.pixelSize: 72
+                id: bigClock
+                text: Qt.formatTime(new Date(), "HH:mm")
+                font.pixelSize: 96
                 font.bold: true
+                font.family: "Outfit, Inter, monospace"
+                font.letterSpacing: 4
                 color: "#ffffff"
-                opacity: 0.1
-                font.family: "Outfit, Inter, sans-serif"
+                opacity: 0.15
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Timer {
+                    interval: 1000; running: true; repeat: true
+                    onTriggered: parent.text = Qt.formatTime(new Date(), "HH:mm")
+                }
+
+                // Subtle breathing animation
+                SequentialAnimation on opacity {
+                    loops: Animation.Infinite
+                    NumberAnimation { to: 0.2; duration: 3000; easing.type: Easing.InOutSine }
+                    NumberAnimation { to: 0.12; duration: 3000; easing.type: Easing.InOutSine }
+                }
             }
 
             Text {
-                text: "Willkommen in deinem System"
-                font.pixelSize: 24
+                id: dateText
+                text: Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+                font.pixelSize: 20
                 color: "#e2e8f0"
+                opacity: 0.35
                 font.family: "Outfit, Inter, sans-serif"
                 font.weight: Font.Light
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Timer {
+                    interval: 60000; running: true; repeat: true
+                    onTriggered: parent.text = Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+                }
+            }
+
+            Text {
+                text: "MB-OS"
+                font.pixelSize: 14
+                color: themeManager.accentColor
+                opacity: 0.3
+                font.family: "Outfit, Inter, sans-serif"
+                font.weight: Font.Light
+                font.letterSpacing: 8
+                anchors.horizontalCenter: parent.horizontalCenter
             }
         }
 
@@ -490,12 +756,16 @@ ApplicationWindow {
                     ListElement { name: "Google"; icon: "Go"; cmd: "mb-browser --url https://google.com"; clr: "#34a853"; category: "web" }
                     ListElement { name: "GitHub"; icon: "GH"; cmd: "mb-browser --url https://github.com"; clr: "#ffffff"; category: "web" }
                     ListElement { name: "ChatGPT"; icon: "GP"; cmd: "mb-browser --url https://chatgpt.com"; clr: "#10a37f"; category: "web" }
+                    ListElement { name: "WhatsApp"; icon: "WA"; cmd: "mb-browser --url https://web.whatsapp.com"; clr: "#25d366"; category: "web" }
+                    ListElement { name: "Maps"; icon: "📍"; cmd: "mb-browser --url https://maps.google.com"; clr: "#4285f4"; category: "web" }
+                    ListElement { name: "OOONO"; icon: "🚗"; cmd: "mb-browser --url https://my.ooono.com"; clr: "#ff6b00"; category: "web" }
                     // Antigravity AI (Google Gemini CLI)
                     ListElement { name: "Antigravity"; icon: "AG"; cmd: "__antigravity__"; clr: "#a855f7"; category: "ai" }
                     // Darkweb / Tor Browser
                     ListElement { name: "Darkweb"; icon: "🧅"; cmd: "mb-browser --tor"; clr: "#7c3aed"; category: "web" }
                     // System Tools
                     ListElement { name: "Netzwerk"; icon: "N"; cmd: "xterm -bg black -fg cyan -fs 11 -e bash -c 'ip addr; echo ---; ping -c 4 google.com; read'"; clr: "#0ea5e9"; category: "system" }
+                    ListElement { name: "WiFi"; icon: "📶"; cmd: "xterm -fa Monospace -fs 12 -bg black -fg cyan -T WiFi -e nmtui"; clr: "#0ea5e9"; category: "system" }
                     ListElement { name: "SSH"; icon: ">>"; cmd: "xterm -bg black -fg white -fs 12 -e bash"; clr: "#6366f1"; category: "system" }
                     ListElement { name: "Tor Status"; icon: "T"; cmd: "xterm -bg black -fg magenta -fs 11 -e bash -c 'systemctl status tor; read'"; clr: "#7c3aed"; category: "system" }
                     ListElement { name: "Installieren"; icon: "⬇"; cmd: "xterm -e launch-installer"; clr: "#f59e0b"; category: "system" }

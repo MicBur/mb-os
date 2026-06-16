@@ -7,7 +7,7 @@ if (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 }
 
 $DiskNumber = 2
-$ISOPath = "D:\MB-OS\mb-os-full.iso"
+$ISOPath = "D:\MB-OS\mb-os.iso"
 
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  MB-OS USB-Stick (Raw Write)" -ForegroundColor Cyan

@@ -18,6 +18,15 @@ export XCURSOR_THEME=DMZ-White
 export XCURSOR_SIZE=24
 xsetroot -cursor_name left_ptr 2>/dev/null || true
 
+# Force software cursor for Intel/Celeron (hardware cursor invisible on some chips)
+mkdir -p /etc/X11/xorg.conf.d
+cat > /etc/X11/xorg.conf.d/20-cursor.conf << 'XCURSOR'
+Section "Device"
+    Identifier "Default"
+    Option "SWCursor" "true"
+EndSection
+XCURSOR
+
 # Write cursor config for mbuser
 mkdir -p /home/mbuser
 echo 'Xcursor.theme: DMZ-White' > /home/mbuser/.Xresources

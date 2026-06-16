@@ -1,0 +1,24 @@
+---
+componentName: mb-os
+welcomeStyleCalamares: true
+strings:
+    productName: "MB-OS"
+    shortProductName: "MB-OS"
+    version: "1.0"
+    shortVersion: "1.0"
+    versionedName: "MB-OS 1.0"
+    shortVersionedName: "MB-OS 1.0"
+    bootloaderEntryName: "MB-OS"
+    productUrl: "https://github.com/MicBur/mb-os"
+
+images:
+    productLogo: "/etc/calamares/branding/mb-os/logo.png"
+    productIcon: "/etc/calamares/branding/mb-os/logo.png"
+
+slideshow: []
+
+style:
+    sidebarBackground: "#0a0c16"
+    sidebarText: "#e2e8f0"
+    sidebarTextSelect: "#00f0ff"
+    sidebarTextHighlight: "#bd00ff"

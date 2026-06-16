@@ -23,6 +23,7 @@ public:
     QString glowColor2() const { return m_glowColor2; }
 
     Q_INVOKABLE void loadTheme();
+    Q_INVOKABLE void setTheme(const QString &themeName);
 
 signals:
     void themeChanged();
