@@ -708,61 +708,267 @@ ApplicationWindow {
         anchors.bottom: parent.bottom
         width: parent.width
 
-        // Big Desktop Clock
-        Column {
-            anchors.centerIn: parent
-            anchors.verticalCenterOffset: -40
+        // ===== Android-Style Home Screen =====
+        property bool homeEditMode: false
+
+        SwipeView {
+            id: homeSwipe
+            anchors.fill: parent
+            anchors.bottomMargin: 130
+            currentIndex: 0
+            clip: true
+
+            Repeater {
+                model: systemMonitor.homePageCount
+
+                Item {
+                    property int pageIndex: index
+
+                    // Clock widget on page 0
+                    Column {
+                        visible: pageIndex === 0
+                        anchors.top: parent.top
+                        anchors.topMargin: 30
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 4
+
+                        Text {
+                            text: Qt.formatTime(new Date(), "HH:mm")
+                            font.pixelSize: 64
+                            font.bold: true
+                            font.family: "Outfit, Inter, monospace"
+                            font.letterSpacing: 4
+                            color: "#ffffff"
+                            opacity: 0.2
+                            anchors.horizontalCenter: parent.horizontalCenter
+
+                            Timer {
+                                interval: 1000; running: true; repeat: true
+                                onTriggered: parent.text = Qt.formatTime(new Date(), "HH:mm")
+                            }
+                        }
+
+                        Text {
+                            text: Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+                            font.pixelSize: 16
+                            color: "#e2e8f0"
+                            opacity: 0.35
+                            font.family: "Outfit, Inter, sans-serif"
+                            font.weight: Font.Light
+                            anchors.horizontalCenter: parent.horizontalCenter
+
+                            Timer {
+                                interval: 60000; running: true; repeat: true
+                                onTriggered: parent.text = Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+                            }
+
+                            MouseArea {
+                                anchors.fill: parent
+                                cursorShape: Qt.PointingHandCursor
+                                onClicked: systemMonitor.launchApp("mb-browser --url https://calendar.google.com")
+                            }
+                        }
+                    }
+
+                    // App shortcuts grid
+                    GridView {
+                        id: homeGrid
+                        anchors.top: parent.top
+                        anchors.topMargin: pageIndex === 0 ? 160 : 30
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 10
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        width: Math.min(parent.width - 40, cellWidth * 4)
+                        cellWidth: 110 * systemMonitor.uiScale
+                        cellHeight: 110 * systemMonitor.uiScale
+                        clip: true
+
+                        model: {
+                            var apps = systemMonitor.getHomePageApps(pageIndex);
+                            return apps ? apps : [];
+                        }
+
+                        delegate: Item {
+                            width: homeGrid.cellWidth
+                            height: homeGrid.cellHeight
+
+                            Column {
+                                anchors.centerIn: parent
+                                spacing: 6
+
+                                Rectangle {
+                                    width: 56 * systemMonitor.uiScale
+                                    height: 56 * systemMonitor.uiScale
+                                    radius: 16 * systemMonitor.uiScale
+                                    color: homeIconMa.containsMouse ? Qt.rgba(1,1,1,0.15) : Qt.rgba(1,1,1,0.06)
+                                    border.color: modelData.clr ? modelData.clr : "#ffffff"
+                                    border.width: homeIconMa.containsMouse ? 2 : 1
+                                    anchors.horizontalCenter: parent.horizontalCenter
+
+                                    Behavior on color { ColorAnimation { duration: 120 } }
+
+                                    Text {
+                                        text: modelData.icon ? modelData.icon : "?"
+                                        anchors.centerIn: parent
+                                        color: modelData.clr ? modelData.clr : "#ffffff"
+                                        font.pixelSize: 20 * systemMonitor.uiScale
+                                        font.bold: true
+                                    }
+
+                                    // Delete badge in edit mode
+                                    Rectangle {
+                                        visible: homeEditMode
+                                        width: 20; height: 20; radius: 10
+                                        color: "#ff4060"
+                                        anchors.top: parent.top
+                                        anchors.right: parent.right
+                                        anchors.topMargin: -5
+                                        anchors.rightMargin: -5
+
+                                        Text {
+                                            text: "\u2715"
+                                            color: "#ffffff"
+                                            font.pixelSize: 12
+                                            font.bold: true
+                                            anchors.centerIn: parent
+                                        }
+                                        MouseArea {
+                                            anchors.fill: parent
+                                            cursorShape: Qt.PointingHandCursor
+                                            onClicked: systemMonitor.removeFromHomeScreen(pageIndex, index)
+                                        }
+                                    }
+
+                                    scale: homeIconMa.containsMouse ? 1.1 : (homeEditMode ? 0.95 : 1.0)
+                                    Behavior on scale { NumberAnimation { duration: 120 } }
+
+                                    // Wiggle animation in edit mode
+                                    rotation: homeEditMode ? 2 : 0
+                                    SequentialAnimation on rotation {
+                                        running: homeEditMode
+                                        loops: Animation.Infinite
+                                        NumberAnimation { to: 2; duration: 150 }
+                                        NumberAnimation { to: -2; duration: 150 }
+                                    }
+
+                                    MouseArea {
+                                        id: homeIconMa
+                                        anchors.fill: parent
+                                        hoverEnabled: true
+                                        cursorShape: Qt.PointingHandCursor
+                                        onClicked: {
+                                            if (!homeEditMode) {
+                                                if (modelData.cmd === "__power_menu__") {
+                                                    powerMenu.open();
+                                                } else if (modelData.cmd === "__ai_drawer__") {
+                                                    aiDrawer.open();
+                                                } else if (modelData.cmd === "__antigravity__") {
+                                                    systemMonitor.launchApp("launch-antigravity");
+                                                } else {
+                                                    systemMonitor.launchApp(modelData.cmd);
+                                                }
+                                            }
+                                        }
+                                        onPressAndHold: homeEditMode = true
+                                    }
+                                }
+
+                                Text {
+                                    text: modelData.name ? modelData.name : ""
+                                    color: "#c0c8d8"
+                                    font.pixelSize: 10 * systemMonitor.uiScale
+                                    horizontalAlignment: Text.AlignHCenter
+                                    width: 90 * systemMonitor.uiScale
+                                    elide: Text.ElideRight
+                                    anchors.horizontalCenter: parent.horizontalCenter
+                                }
+                            }
+                        }
+                    }
+
+                    // Empty state
+                    Text {
+                        visible: {
+                            var apps = systemMonitor.getHomePageApps(pageIndex);
+                            return (!apps || apps.length === 0) && pageIndex > 0;
+                        }
+                        text: "Leere Seite\nLange dr\u00fccken zum Bearbeiten\nApps aus dem Drawer hierher hinzuf\u00fcgen"
+                        color: "#50ffffff"
+                        font.pixelSize: 14
+                        horizontalAlignment: Text.AlignHCenter
+                        anchors.centerIn: parent
+                        lineHeight: 1.6
+                    }
+                }
+            }
+        }
+
+        // Page indicator dots
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 128
             spacing: 8
+            z: 10
 
-            Text {
-                id: bigClock
-                text: Qt.formatTime(new Date(), "HH:mm")
-                font.pixelSize: 96
-                font.bold: true
-                font.family: "Outfit, Inter, monospace"
-                font.letterSpacing: 4
-                color: "#ffffff"
-                opacity: 0.15
-                anchors.horizontalCenter: parent.horizontalCenter
-
-                Timer {
-                    interval: 1000; running: true; repeat: true
-                    onTriggered: parent.text = Qt.formatTime(new Date(), "HH:mm")
-                }
-
-                // Subtle breathing animation
-                SequentialAnimation on opacity {
-                    loops: Animation.Infinite
-                    NumberAnimation { to: 0.2; duration: 3000; easing.type: Easing.InOutSine }
-                    NumberAnimation { to: 0.12; duration: 3000; easing.type: Easing.InOutSine }
+            Repeater {
+                model: systemMonitor.homePageCount
+                Rectangle {
+                    width: homeSwipe.currentIndex === index ? 16 : 8
+                    height: 8
+                    radius: 4
+                    color: homeSwipe.currentIndex === index ? themeManager.accentColor : "#40ffffff"
+                    Behavior on width { NumberAnimation { duration: 150 } }
+                    Behavior on color { ColorAnimation { duration: 150 } }
                 }
             }
+        }
 
-            Text {
-                id: dateText
-                text: Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
-                font.pixelSize: 20
-                color: "#e2e8f0"
-                opacity: 0.35
-                font.family: "Outfit, Inter, sans-serif"
-                font.weight: Font.Light
-                anchors.horizontalCenter: parent.horizontalCenter
+        // Edit mode toolbar
+        Rectangle {
+            visible: homeEditMode
+            width: 260
+            height: 40
+            radius: 20
+            color: themeManager.glassBgColor
+            border.color: themeManager.accentColor
+            border.width: 1
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 150
+            anchors.horizontalCenter: parent.horizontalCenter
+            z: 20
 
-                Timer {
-                    interval: 60000; running: true; repeat: true
-                    onTriggered: parent.text = Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+            Row {
+                anchors.centerIn: parent
+                spacing: 20
+
+                Text {
+                    text: "+ Seite"
+                    color: themeManager.accentColor
+                    font.pixelSize: 13
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: systemMonitor.addHomePage()
+                    }
                 }
-            }
 
-            Text {
-                text: "MB-OS"
-                font.pixelSize: 14
-                color: themeManager.accentColor
-                opacity: 0.3
-                font.family: "Outfit, Inter, sans-serif"
-                font.weight: Font.Light
-                font.letterSpacing: 8
-                anchors.horizontalCenter: parent.horizontalCenter
+                Rectangle { width: 1; height: 20; color: themeManager.glassBorderColor; anchors.verticalCenter: parent.verticalCenter }
+
+                Text {
+                    text: "\u2715 Fertig"
+                    color: "#ff4060"
+                    font.pixelSize: 13
+                    font.bold: true
+                    anchors.verticalCenter: parent.verticalCenter
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: homeEditMode = false
+                    }
+                }
             }
         }
 
@@ -946,9 +1152,9 @@ ApplicationWindow {
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: 20
                 anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(parent.width - 40, cellWidth * 5)
-                cellWidth: 120
-                cellHeight: 110
+                width: Math.min(parent.width - 40, cellWidth * Math.max(2, Math.round(5 / systemMonitor.uiScale)))
+                cellWidth: 120 * systemMonitor.uiScale
+                cellHeight: 110 * systemMonitor.uiScale
                 clip: true
 
                 model: ListModel {
@@ -998,6 +1204,17 @@ ApplicationWindow {
                     ListElement { name: "Update"; icon: "🔄"; cmd: "xterm -e sudo mb-update"; clr: "#22c55e"; category: "system" }
                     ListElement { name: "Flatpak"; icon: "📦"; cmd: "xterm -e bash -c 'flatpak list; echo ---; echo Installieren: flatpak install flathub APP_NAME; read'"; clr: "#0891b2"; category: "system" }
                     ListElement { name: "Power"; icon: "P"; cmd: "__power_menu__"; clr: "#ef4444"; category: "system" }
+                    // Google Tools
+                    ListElement { name: "Kalender"; icon: "📅"; cmd: "mb-browser --url https://calendar.google.com"; clr: "#4285f4"; category: "google" }
+                    ListElement { name: "Drive"; icon: "△"; cmd: "mb-browser --url https://drive.google.com"; clr: "#1fa463"; category: "google" }
+                    ListElement { name: "Docs"; icon: "📝"; cmd: "mb-browser --url https://docs.google.com"; clr: "#4285f4"; category: "google" }
+                    ListElement { name: "Sheets"; icon: "📊"; cmd: "mb-browser --url https://sheets.google.com"; clr: "#0f9d58"; category: "google" }
+                    ListElement { name: "Meet"; icon: "📹"; cmd: "mb-browser --url https://meet.google.com"; clr: "#00897b"; category: "google" }
+                    ListElement { name: "Keep"; icon: "📌"; cmd: "mb-browser --url https://keep.google.com"; clr: "#fbbc04"; category: "google" }
+                    ListElement { name: "Translate"; icon: "🌐"; cmd: "mb-browser --url https://translate.google.com"; clr: "#4285f4"; category: "google" }
+                    ListElement { name: "Fotos"; icon: "🖼"; cmd: "mb-browser --url https://photos.google.com"; clr: "#ea4335"; category: "google" }
+                    ListElement { name: "Kontakte"; icon: "👥"; cmd: "mb-browser --url https://contacts.google.com"; clr: "#4285f4"; category: "google" }
+                    ListElement { name: "Play Store"; icon: "▶"; cmd: "mb-browser --url https://play.google.com"; clr: "#01875f"; category: "google" }
                 }
 
                 delegate: Item {
@@ -1014,8 +1231,8 @@ ApplicationWindow {
 
                         // App Icon
                         Rectangle {
-                            width: 56; height: 56
-                            radius: 16
+                            width: 56 * systemMonitor.uiScale; height: 56 * systemMonitor.uiScale
+                            radius: 16 * systemMonitor.uiScale
                             color: appIconMa.containsMouse ? Qt.rgba(1,1,1,0.12) : Qt.rgba(1,1,1,0.05)
                             border.color: model.clr
                             border.width: appIconMa.containsMouse ? 2 : 1
@@ -1028,7 +1245,7 @@ ApplicationWindow {
                                 text: model.icon
                                 anchors.centerIn: parent
                                 color: model.clr
-                                font.pixelSize: model.icon.length > 2 ? 14 : 20
+                                font.pixelSize: (model.icon.length > 2 ? 14 : 20) * systemMonitor.uiScale
                                 font.bold: true
                             }
 
@@ -1057,6 +1274,13 @@ ApplicationWindow {
                                         systemMonitor.launchApp(model.cmd);
                                     }
                                 }
+                                onPressAndHold: {
+                                    addToHomePopup.appName = model.name;
+                                    addToHomePopup.appIcon = model.icon;
+                                    addToHomePopup.appCmd = model.cmd;
+                                    addToHomePopup.appClr = model.clr;
+                                    addToHomePopup.open();
+                                }
                             }
                         }
 
@@ -1064,13 +1288,158 @@ ApplicationWindow {
                         Text {
                             text: model.name
                             color: "#c0c8d8"
-                            font.pixelSize: 10
+                            font.pixelSize: 10 * systemMonitor.uiScale
                             horizontalAlignment: Text.AlignHCenter
-                            width: 100
+                            width: 100 * systemMonitor.uiScale
                             elide: Text.ElideRight
                             anchors.horizontalCenter: parent.horizontalCenter
                         }
                     }
+                }
+            }
+        }
+    }
+
+    // ==================== ADD TO HOME SCREEN POPUP ====================
+    Popup {
+        id: addToHomePopup
+        width: 320
+        height: addToHomeCol.implicitHeight + 40
+        modal: true
+        focus: true
+        anchors.centerIn: parent
+
+        property string appName: ""
+        property string appIcon: ""
+        property string appCmd: ""
+        property string appClr: ""
+        property int targetPage: 0
+
+        background: Rectangle {
+            color: themeManager.glassBgColor
+            opacity: 0.95
+            radius: 16
+            border.color: themeManager.accentColor
+            border.width: 1
+        }
+
+        contentItem: Column {
+            id: addToHomeCol
+            spacing: 16
+            anchors.centerIn: parent
+            width: parent.width - 40
+
+            Text {
+                text: "Zum Startbildschirm"
+                color: "#ffffff"
+                font.pixelSize: 18
+                font.bold: true
+                horizontalAlignment: Text.AlignHCenter
+                width: parent.width
+            }
+
+            // App preview
+            Row {
+                spacing: 12
+                anchors.horizontalCenter: parent.horizontalCenter
+                Rectangle {
+                    width: 40; height: 40; radius: 12
+                    color: Qt.rgba(1,1,1,0.08)
+                    border.color: addToHomePopup.appClr
+                    border.width: 1
+                    Text {
+                        text: addToHomePopup.appIcon
+                        anchors.centerIn: parent
+                        color: addToHomePopup.appClr
+                        font.pixelSize: 16
+                        font.bold: true
+                    }
+                }
+                Text {
+                    text: addToHomePopup.appName
+                    color: "#ffffff"
+                    font.pixelSize: 16
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+            }
+
+            // Page selector
+            Row {
+                spacing: 10
+                anchors.horizontalCenter: parent.horizontalCenter
+                Text {
+                    text: "Seite:"
+                    color: "#a0a5c0"
+                    font.pixelSize: 13
+                    anchors.verticalCenter: parent.verticalCenter
+                }
+                Repeater {
+                    model: systemMonitor.homePageCount
+                    Rectangle {
+                        width: 36; height: 36; radius: 8
+                        color: addToHomePopup.targetPage === index ? Qt.rgba(0.1, 0.7, 0.95, 0.3) : Qt.rgba(1,1,1,0.06)
+                        border.color: addToHomePopup.targetPage === index ? themeManager.accentColor : themeManager.glassBorderColor
+                        border.width: addToHomePopup.targetPage === index ? 2 : 1
+                        Text {
+                            text: (index + 1).toString()
+                            anchors.centerIn: parent
+                            color: addToHomePopup.targetPage === index ? themeManager.accentColor : "#ffffff"
+                            font.pixelSize: 14
+                            font.bold: true
+                        }
+                        MouseArea {
+                            anchors.fill: parent
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: addToHomePopup.targetPage = index
+                        }
+                    }
+                }
+            }
+
+            Row {
+                spacing: 15
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Button {
+                    id: addHomeBtn
+                    text: "Hinzuf\u00fcgen"
+                    width: 120
+                    background: Rectangle {
+                        color: addHomeBtn.hovered ? Qt.rgba(0.1, 0.7, 0.95, 0.3) : themeManager.glassBgColor
+                        border.color: themeManager.accentColor
+                        radius: 8
+                    }
+                    contentItem: Text {
+                        text: parent.text
+                        color: themeManager.accentColor
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                        font.bold: true
+                    }
+                    onClicked: {
+                        systemMonitor.addToHomeScreen(
+                            addToHomePopup.targetPage,
+                            addToHomePopup.appName,
+                            addToHomePopup.appIcon,
+                            addToHomePopup.appCmd,
+                            addToHomePopup.appClr
+                        );
+                        addToHomePopup.close();
+                    }
+                }
+
+                Button {
+                    id: cancelHomeBtn
+                    text: "Abbrechen"
+                    width: 100
+                    flat: true
+                    contentItem: Text {
+                        text: parent.text
+                        color: cancelHomeBtn.hovered ? "#ffffff" : "#80a5c0"
+                        horizontalAlignment: Text.AlignHCenter
+                        verticalAlignment: Text.AlignVCenter
+                    }
+                    onClicked: addToHomePopup.close()
                 }
             }
         }
@@ -1560,7 +1929,8 @@ ApplicationWindow {
                                 { label: "\uD83C\uDF10  Netzwerk",     idx: 1 },
                                 { label: "\u2699  System",             idx: 2 },
                                 { label: "\uD83C\uDFA8  Darstellung",  idx: 3 },
-                                { label: "\u2139  \u00DCber",           idx: 4 }
+                                { label: "\u2139  \u00DCber",           idx: 4 },
+                                { label: "\u267F  Barrierefreiheit",   idx: 5 }
                             ]
 
                             delegate: Rectangle {
@@ -2046,6 +2416,136 @@ ApplicationWindow {
                                             lineHeight: 1.4
                                             wrapMode: Text.Wrap
                                             width: parent.width
+                                        }
+                                    }
+                                }
+                            }
+
+                            // ──────── BARRIEREFREIHEIT ────────
+                            Column {
+                                width: parent.width
+                                spacing: 16
+                                visible: settingsPanel.selectedCategory === 5
+
+                                Text {
+                                    text: "\u267F  Barrierefreiheit"
+                                    color: "#ffffff"
+                                    font.pixelSize: 22
+                                    font.bold: true
+                                }
+
+                                Rectangle {
+                                    width: parent.width
+                                    height: accessCol.implicitHeight + 32
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        id: accessCol
+                                        anchors.fill: parent
+                                        anchors.margins: 16
+                                        spacing: 16
+
+                                        Text {
+                                            text: "Sehbehinderung"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 16
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            text: "Vergr\u00f6\u00dfert alle Icons, Texte und Bedienelemente.\nAktueller Faktor: " + systemMonitor.uiScale.toFixed(1) + "x"
+                                            color: "#a0a5c0"
+                                            font.pixelSize: 12
+                                            wrapMode: Text.Wrap
+                                            width: parent.width - 32
+                                        }
+
+                                        Row {
+                                            spacing: 12
+
+                                            Repeater {
+                                                model: [
+                                                    { label: "Normal", scale: 1.0 },
+                                                    { label: "Gro\u00df", scale: 1.5 },
+                                                    { label: "Sehr Gro\u00df", scale: 2.0 },
+                                                    { label: "Maximum", scale: 3.0 }
+                                                ]
+
+                                                delegate: Button {
+                                                    id: scaleBtn
+                                                    text: modelData.label
+                                                    width: 100
+                                                    height: 40
+                                                    background: Rectangle {
+                                                        color: Math.abs(systemMonitor.uiScale - modelData.scale) < 0.1
+                                                               ? Qt.rgba(0.1, 0.7, 0.95, 0.3)
+                                                               : scaleBtn.hovered ? Qt.rgba(1,1,1,0.08) : themeManager.glassBgColor
+                                                        border.color: Math.abs(systemMonitor.uiScale - modelData.scale) < 0.1
+                                                                      ? themeManager.accentColor : themeManager.glassBorderColor
+                                                        border.width: Math.abs(systemMonitor.uiScale - modelData.scale) < 0.1 ? 2 : 1
+                                                        radius: 10
+                                                        Behavior on color { ColorAnimation { duration: 150 } }
+                                                    }
+                                                    contentItem: Text {
+                                                        text: parent.text
+                                                        color: Math.abs(systemMonitor.uiScale - modelData.scale) < 0.1
+                                                               ? themeManager.accentColor : "#ffffff"
+                                                        font.pixelSize: 13
+                                                        font.bold: Math.abs(systemMonitor.uiScale - modelData.scale) < 0.1
+                                                        horizontalAlignment: Text.AlignHCenter
+                                                        verticalAlignment: Text.AlignVCenter
+                                                    }
+                                                    onClicked: systemMonitor.setUiScale(modelData.scale)
+                                                }
+                                            }
+                                        }
+
+                                        Rectangle {
+                                            width: parent.width - 32
+                                            height: 60
+                                            radius: 8
+                                            color: "#10ffffff"
+                                            border.color: themeManager.glassBorderColor
+
+                                            Row {
+                                                anchors.centerIn: parent
+                                                spacing: 16
+                                                Text {
+                                                    text: "Vorschau:"
+                                                    color: "#a0a5c0"
+                                                    font.pixelSize: 12 * systemMonitor.uiScale
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                                Rectangle {
+                                                    width: 24 * systemMonitor.uiScale
+                                                    height: 24 * systemMonitor.uiScale
+                                                    radius: 6 * systemMonitor.uiScale
+                                                    color: themeManager.accentColor
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                    Text {
+                                                        text: "A"
+                                                        anchors.centerIn: parent
+                                                        color: "#ffffff"
+                                                        font.pixelSize: 14 * systemMonitor.uiScale
+                                                        font.bold: true
+                                                    }
+                                                }
+                                                Text {
+                                                    text: "App Name"
+                                                    color: "#ffffff"
+                                                    font.pixelSize: 14 * systemMonitor.uiScale
+                                                    anchors.verticalCenter: parent.verticalCenter
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            text: "\u26A0 \u00C4nderung wird sofort wirksam und beim Neustart beibehalten."
+                                            color: "#f59e0b"
+                                            font.pixelSize: 11
                                         }
                                     }
                                 }

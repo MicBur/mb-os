@@ -11,6 +11,9 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QVariantList>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
 #include "ThemeManager.h"
 
 class SystemMonitor : public QObject {
@@ -36,10 +39,17 @@ class SystemMonitor : public QObject {
     Q_PROPERTY(bool volumeMuted READ volumeMuted NOTIFY volumeChanged)
     // Brightness
     Q_PROPERTY(int brightnessLevel READ brightnessLevel NOTIFY brightnessChanged)
+    // Accessibility
+    Q_PROPERTY(double uiScale READ uiScale NOTIFY uiScaleChanged)
+    // Home Screen
+    Q_PROPERTY(int homePageCount READ homePageCount NOTIFY homeScreenChanged)
+    Q_PROPERTY(QVariantList homeScreenData READ homeScreenData NOTIFY homeScreenChanged)
 
 public:
     SystemMonitor(QObject *parent = nullptr) : QObject(parent), m_cpuUsage(0), m_memUsage(0),
         m_gpuUsage(0), m_gpuMemUsage(0), m_cpuTemp(0) {
+        loadAccessibility();
+        loadHomeScreen();
         detectCoreCount();
         detectGpuName();
         m_timer = new QTimer(this);
@@ -69,6 +79,8 @@ public:
     bool volumeMuted() const { return m_volumeMuted; }
     // Brightness
     int brightnessLevel() const { return m_brightnessLevel; }
+    // Accessibility
+    double uiScale() const { return m_uiScale; }
 
     Q_INVOKABLE void launchApp(const QString &command) {
         qDebug() << "Launching app:" << command;
@@ -111,6 +123,67 @@ public:
         }
     }
 
+    Q_INVOKABLE void setUiScale(double scale) {
+        m_uiScale = qBound(1.0, scale, 4.0);
+        saveAccessibility();
+        emit uiScaleChanged();
+    }
+
+    // Home Screen management
+    int homePageCount() const { return qMax(1, m_homePages.size()); }
+    QVariantList homeScreenData() const { return m_homePages; }
+
+    Q_INVOKABLE QVariantList getHomePageApps(int page) {
+        if (page >= 0 && page < m_homePages.size())
+            return m_homePages[page].toList();
+        return {};
+    }
+
+    Q_INVOKABLE void addToHomeScreen(int page, const QString &name, const QString &icon, const QString &cmd, const QString &clr) {
+        while (m_homePages.size() <= page)
+            m_homePages.append(QVariantList());
+        QVariantMap app;
+        app["name"] = name;
+        app["icon"] = icon;
+        app["cmd"] = cmd;
+        app["clr"] = clr;
+        QVariantList pageApps = m_homePages[page].toList();
+        // Avoid duplicates
+        for (const auto &a : pageApps) {
+            if (a.toMap()["cmd"] == cmd) return;
+        }
+        pageApps.append(app);
+        m_homePages[page] = pageApps;
+        saveHomeScreen();
+        emit homeScreenChanged();
+    }
+
+    Q_INVOKABLE void removeFromHomeScreen(int page, int index) {
+        if (page >= 0 && page < m_homePages.size()) {
+            QVariantList pageApps = m_homePages[page].toList();
+            if (index >= 0 && index < pageApps.size()) {
+                pageApps.removeAt(index);
+                m_homePages[page] = pageApps;
+                saveHomeScreen();
+                emit homeScreenChanged();
+            }
+        }
+    }
+
+    Q_INVOKABLE void addHomePage() {
+        m_homePages.append(QVariantList());
+        saveHomeScreen();
+        emit homeScreenChanged();
+    }
+
+    Q_INVOKABLE void removeHomePage(int page) {
+        if (page >= 0 && page < m_homePages.size() && m_homePages.size() > 1) {
+            m_homePages.removeAt(page);
+            saveHomeScreen();
+            emit homeScreenChanged();
+        }
+    }
+
 signals:
     void cpuUsageChanged();
     void memUsageChanged();
@@ -124,6 +197,8 @@ signals:
     void wifiChanged();
     void volumeChanged();
     void brightnessChanged();
+    void uiScaleChanged();
+    void homeScreenChanged();
 
 private:
     double m_cpuUsage;
@@ -147,7 +222,9 @@ private:
     bool m_volumeMuted = false;
     // Brightness
     int m_brightnessLevel = 100;
-    int m_slowTick = 0; // Update battery/wifi every 5s
+    int m_slowTick = 0;
+    double m_uiScale = 1.0;
+    QVariantList m_homePages; // Each element is a QVariantList of QVariantMaps
     QVariantList m_coreUsagesList;
 
     // Per-core tracking
@@ -408,6 +485,70 @@ private:
                     emit brightnessChanged();
                 }
             }
+        }
+    }
+
+    void loadAccessibility() {
+        QFile f(QDir::homePath() + "/.config/mb-os/accessibility.conf");
+        if (f.open(QIODevice::ReadOnly)) {
+            QTextStream in(&f);
+            while (!in.atEnd()) {
+                QString line = in.readLine().trimmed();
+                if (line.startsWith("uiScale=")) {
+                    m_uiScale = qBound(1.0, line.mid(8).toDouble(), 4.0);
+                }
+            }
+            f.close();
+        }
+    }
+
+    void saveAccessibility() {
+        QDir().mkpath(QDir::homePath() + "/.config/mb-os");
+        QFile f(QDir::homePath() + "/.config/mb-os/accessibility.conf");
+        if (f.open(QIODevice::WriteOnly | QIODevice::Text)) {
+            QTextStream out(&f);
+            out << "uiScale=" << m_uiScale << "\n";
+            f.close();
+        }
+    }
+
+    void loadHomeScreen() {
+        QFile f(QDir::homePath() + "/.config/mb-os/homescreen.json");
+        if (f.open(QIODevice::ReadOnly)) {
+            QJsonDocument doc = QJsonDocument::fromJson(f.readAll());
+            f.close();
+            QJsonArray pages = doc.object()["pages"].toArray();
+            m_homePages.clear();
+            for (const auto &page : pages) {
+                QVariantList pageApps;
+                for (const auto &app : page.toArray()) {
+                    pageApps.append(app.toObject().toVariantMap());
+                }
+                m_homePages.append(QVariant::fromValue(pageApps));
+            }
+        }
+        if (m_homePages.isEmpty()) {
+            m_homePages.append(QVariantList()); // At least one page
+        }
+    }
+
+    void saveHomeScreen() {
+        QDir().mkpath(QDir::homePath() + "/.config/mb-os");
+        QJsonObject root;
+        QJsonArray pages;
+        for (const auto &page : m_homePages) {
+            QJsonArray pageArr;
+            for (const auto &app : page.toList()) {
+                QJsonObject obj = QJsonObject::fromVariantMap(app.toMap());
+                pageArr.append(obj);
+            }
+            pages.append(pageArr);
+        }
+        root["pages"] = pages;
+        QFile f(QDir::homePath() + "/.config/mb-os/homescreen.json");
+        if (f.open(QIODevice::WriteOnly)) {
+            f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+            f.close();
         }
     }
 };
