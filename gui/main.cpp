@@ -4,11 +4,13 @@
 #include <QObject>
 #include <QTimer>
 #include <QFile>
+#include <QDir>
 #include <QTextStream>
 #include <QStringList>
 #include <QDebug>
 #include <QProcess>
 #include <QRegularExpression>
+#include <QVariantList>
 #include "ThemeManager.h"
 
 class SystemMonitor : public QObject {
@@ -21,6 +23,19 @@ class SystemMonitor : public QObject {
     Q_PROPERTY(QVariantList coreUsages READ coreUsages NOTIFY coreUsagesChanged)
     Q_PROPERTY(int coreCount READ coreCount NOTIFY coreCountChanged)
     Q_PROPERTY(double cpuTempC READ cpuTempC NOTIFY cpuTempChanged)
+    // Battery
+    Q_PROPERTY(int batteryLevel READ batteryLevel NOTIFY batteryChanged)
+    Q_PROPERTY(bool batteryCharging READ batteryCharging NOTIFY batteryChanged)
+    Q_PROPERTY(bool batteryPresent READ batteryPresent NOTIFY batteryChanged)
+    // WiFi
+    Q_PROPERTY(QString wifiName READ wifiName NOTIFY wifiChanged)
+    Q_PROPERTY(int wifiStrength READ wifiStrength NOTIFY wifiChanged)
+    Q_PROPERTY(bool wifiConnected READ wifiConnected NOTIFY wifiChanged)
+    // Volume
+    Q_PROPERTY(int volumeLevel READ volumeLevel NOTIFY volumeChanged)
+    Q_PROPERTY(bool volumeMuted READ volumeMuted NOTIFY volumeChanged)
+    // Brightness
+    Q_PROPERTY(int brightnessLevel READ brightnessLevel NOTIFY brightnessChanged)
 
 public:
     SystemMonitor(QObject *parent = nullptr) : QObject(parent), m_cpuUsage(0), m_memUsage(0),
@@ -41,6 +56,19 @@ public:
     int coreCount() const { return m_coreCount; }
     double cpuTempC() const { return m_cpuTemp; }
     QVariantList coreUsages() const { return m_coreUsagesList; }
+    // Battery
+    int batteryLevel() const { return m_batteryLevel; }
+    bool batteryCharging() const { return m_batteryCharging; }
+    bool batteryPresent() const { return m_batteryPresent; }
+    // WiFi
+    QString wifiName() const { return m_wifiName; }
+    int wifiStrength() const { return m_wifiStrength; }
+    bool wifiConnected() const { return m_wifiConnected; }
+    // Volume
+    int volumeLevel() const { return m_volumeLevel; }
+    bool volumeMuted() const { return m_volumeMuted; }
+    // Brightness
+    int brightnessLevel() const { return m_brightnessLevel; }
 
     Q_INVOKABLE void launchApp(const QString &command) {
         qDebug() << "Launching app:" << command;
@@ -61,6 +89,28 @@ public:
         QProcess::startDetached("sudo", QStringList() << "reboot");
     }
 
+    Q_INVOKABLE void setVolume(int level) {
+        QProcess::startDetached("wpctl", QStringList() << "set-volume" << "@DEFAULT_AUDIO_SINK@" << QString::number(level / 100.0));
+    }
+    Q_INVOKABLE void toggleMute() {
+        QProcess::startDetached("wpctl", QStringList() << "set-mute" << "@DEFAULT_AUDIO_SINK@" << "toggle");
+    }
+    Q_INVOKABLE void setBrightness(int level) {
+        // Find backlight device and set brightness
+        QDir dir("/sys/class/backlight");
+        QStringList devices = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        if (!devices.isEmpty()) {
+            QString dev = devices.first();
+            QFile fMax("/sys/class/backlight/" + dev + "/max_brightness");
+            if (fMax.open(QIODevice::ReadOnly)) {
+                int maxB = QTextStream(&fMax).readAll().trimmed().toInt();
+                fMax.close();
+                int val = maxB * level / 100;
+                QProcess::startDetached("bash", QStringList() << "-c" << QString("echo %1 | sudo tee /sys/class/backlight/%2/brightness").arg(val).arg(dev));
+            }
+        }
+    }
+
 signals:
     void cpuUsageChanged();
     void memUsageChanged();
@@ -70,6 +120,10 @@ signals:
     void coreUsagesChanged();
     void coreCountChanged();
     void cpuTempChanged();
+    void batteryChanged();
+    void wifiChanged();
+    void volumeChanged();
+    void brightnessChanged();
 
 private:
     double m_cpuUsage;
@@ -80,6 +134,20 @@ private:
     int m_coreCount = 0;
     QString m_gpuName = "N/A";
     QTimer *m_timer;
+    // Battery
+    int m_batteryLevel = -1;
+    bool m_batteryCharging = false;
+    bool m_batteryPresent = false;
+    // WiFi
+    QString m_wifiName = "";
+    int m_wifiStrength = 0;
+    bool m_wifiConnected = false;
+    // Volume
+    int m_volumeLevel = 50;
+    bool m_volumeMuted = false;
+    // Brightness
+    int m_brightnessLevel = 100;
+    int m_slowTick = 0; // Update battery/wifi every 5s
     QVariantList m_coreUsagesList;
 
     // Per-core tracking
@@ -123,6 +191,14 @@ private:
         updateMem();
         updateGpu();
         updateCpuTemp();
+        // Slow-tick updates (every 5 seconds to save CPU)
+        if (++m_slowTick >= 5) {
+            m_slowTick = 0;
+            updateBattery();
+            updateWifi();
+            updateVolume();
+            updateBrightness();
+        }
     }
 
     void updateCpuCores() {
@@ -237,6 +313,99 @@ private:
                     m_cpuTemp = temp;
                     emit cpuTempChanged();
                     return;
+                }
+            }
+        }
+    }
+
+    void updateBattery() {
+        // Check /sys/class/power_supply/BATx
+        QStringList batNames = {"BAT0", "BAT1", "BATT", "battery"};
+        for (const auto &name : batNames) {
+            QString base = "/sys/class/power_supply/" + name;
+            QFile cap(base + "/capacity");
+            if (cap.open(QIODevice::ReadOnly)) {
+                m_batteryPresent = true;
+                m_batteryLevel = QTextStream(&cap).readAll().trimmed().toInt();
+                cap.close();
+                QFile stat(base + "/status");
+                if (stat.open(QIODevice::ReadOnly)) {
+                    QString s = QTextStream(&stat).readAll().trimmed();
+                    m_batteryCharging = (s == "Charging" || s == "Full");
+                    stat.close();
+                }
+                emit batteryChanged();
+                return;
+            }
+        }
+        m_batteryPresent = false;
+        emit batteryChanged();
+    }
+
+    void updateWifi() {
+        // Use iwgetid to get SSID
+        QProcess proc;
+        proc.start("iwgetid", QStringList() << "-r");
+        proc.waitForFinished(500);
+        QString ssid = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        m_wifiConnected = !ssid.isEmpty();
+        m_wifiName = ssid;
+
+        // Read signal strength from /proc/net/wireless
+        QFile f("/proc/net/wireless");
+        if (f.open(QIODevice::ReadOnly)) {
+            QTextStream in(&f);
+            while (!in.atEnd()) {
+                QString line = in.readLine().trimmed();
+                if (line.contains("wl")) {
+                    // Format: wlan0: STATUS LINK LEVEL NOISE ...
+                    QStringList parts = line.split(QRegularExpression("\\s+"), Qt::SkipEmptyParts);
+                    if (parts.size() >= 4) {
+                        double level = parts[3].remove('.').toDouble();
+                        // level is in dBm or relative; normalize to 0-100
+                        if (level > 0) {
+                            m_wifiStrength = qBound(0, (int)level, 100);
+                        } else {
+                            // dBm: -30 = excellent, -90 = terrible
+                            m_wifiStrength = qBound(0, (int)(2 * (level + 100)), 100);
+                        }
+                    }
+                }
+            }
+            f.close();
+        }
+        emit wifiChanged();
+    }
+
+    void updateVolume() {
+        QProcess proc;
+        proc.start("wpctl", QStringList() << "get-volume" << "@DEFAULT_AUDIO_SINK@");
+        proc.waitForFinished(500);
+        QString out = QString::fromUtf8(proc.readAllStandardOutput()).trimmed();
+        // Output: "Volume: 0.50" or "Volume: 0.50 [MUTED]"
+        m_volumeMuted = out.contains("[MUTED]");
+        QRegularExpression rx("Volume:\\s+([0-9.]+)");
+        auto match = rx.match(out);
+        if (match.hasMatch()) {
+            m_volumeLevel = (int)(match.captured(1).toDouble() * 100);
+        }
+        emit volumeChanged();
+    }
+
+    void updateBrightness() {
+        QDir dir("/sys/class/backlight");
+        QStringList devices = dir.entryList(QDir::Dirs | QDir::NoDotAndDotDot);
+        if (!devices.isEmpty()) {
+            QString dev = devices.first();
+            QFile fCur("/sys/class/backlight/" + dev + "/brightness");
+            QFile fMax("/sys/class/backlight/" + dev + "/max_brightness");
+            if (fCur.open(QIODevice::ReadOnly) && fMax.open(QIODevice::ReadOnly)) {
+                int cur = QTextStream(&fCur).readAll().trimmed().toInt();
+                int max = QTextStream(&fMax).readAll().trimmed().toInt();
+                fCur.close(); fMax.close();
+                if (max > 0) {
+                    m_brightnessLevel = (cur * 100) / max;
+                    emit brightnessChanged();
                 }
             }
         }

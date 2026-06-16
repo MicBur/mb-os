@@ -240,6 +240,80 @@ ApplicationWindow {
                         anchors.right: parent.right
                     }
                 }
+                // === Laptop Status Icons ===
+
+                // WiFi Indicator
+                Row {
+                    spacing: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        text: systemMonitor.wifiConnected ? "📶" : "📡"
+                        font.pixelSize: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                        opacity: systemMonitor.wifiConnected ? 1.0 : 0.4
+                    }
+                    Text {
+                        text: systemMonitor.wifiConnected ? systemMonitor.wifiName : "Offline"
+                        color: systemMonitor.wifiConnected ? "#a0a5c0" : "#606070"
+                        font.pixelSize: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                // Volume Indicator
+                Text {
+                    text: systemMonitor.volumeMuted ? "🔇" :
+                          systemMonitor.volumeLevel > 60 ? "🔊" :
+                          systemMonitor.volumeLevel > 20 ? "🔉" : "🔈"
+                    font.pixelSize: 14
+                    anchors.verticalCenter: parent.verticalCenter
+                    opacity: systemMonitor.volumeMuted ? 0.4 : 0.9
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: systemMonitor.toggleMute()
+                    }
+                }
+
+                // Brightness
+                Row {
+                    spacing: 3
+                    anchors.verticalCenter: parent.verticalCenter
+                    Text {
+                        text: "☀"
+                        font.pixelSize: 12
+                        color: "#a0a5c0"
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: systemMonitor.brightnessLevel + "%"
+                        color: "#a0a5c0"
+                        font.pixelSize: 10
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
+
+                // Battery (only if present)
+                Row {
+                    spacing: 4
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: systemMonitor.batteryPresent
+                    Text {
+                        text: systemMonitor.batteryCharging ? "⚡" :
+                              systemMonitor.batteryLevel > 80 ? "🔋" :
+                              systemMonitor.batteryLevel > 15 ? "🪫" : "🪫"
+                        font.pixelSize: 14
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                    Text {
+                        text: systemMonitor.batteryLevel + "%"
+                        color: systemMonitor.batteryLevel <= 15 ? "#ff4060" :
+                               systemMonitor.batteryLevel <= 30 ? "#f59e0b" : "#a0a5c0"
+                        font.pixelSize: 11
+                        font.bold: systemMonitor.batteryLevel <= 15
+                        anchors.verticalCenter: parent.verticalCenter
+                    }
+                }
 
                 Rectangle {
                     width: 1
@@ -481,6 +555,148 @@ ApplicationWindow {
                     color: "#a78bfa"
                     font.pixelSize: 12
                     font.bold: true
+                }
+            }
+        }
+    }
+
+    // ===== Quick Settings Panel =====
+    Rectangle {
+        id: quickSettingsPanel
+        visible: false
+        width: 300
+        height: qsCol.implicitHeight + 32
+        anchors.top: topBar.bottom
+        anchors.topMargin: 4
+        anchors.right: parent.right
+        anchors.rightMargin: 60
+        z: 900
+        color: themeManager.glassBgColor
+        border.color: themeManager.glassBorderColor
+        border.width: 1
+        radius: 16
+
+        MouseArea { anchors.fill: parent }
+
+        Column {
+            id: qsCol
+            anchors.fill: parent
+            anchors.margins: 16
+            spacing: 14
+
+            Row {
+                spacing: 10
+                Text { text: "Quick Settings"; color: themeManager.accentColor; font.pixelSize: 16; font.bold: true }
+                Item { width: 80; height: 1 }
+                Text { text: "✕"; color: "#a0a5c0"; font.pixelSize: 16
+                    MouseArea { anchors.fill: parent; onClicked: quickSettingsPanel.visible = false; cursorShape: Qt.PointingHandCursor }
+                }
+            }
+
+            Rectangle { width: parent.width - 32; height: 1; color: themeManager.glassBorderColor }
+
+            // WiFi
+            Row {
+                spacing: 8
+                Text { text: "📶"; font.pixelSize: 16; anchors.verticalCenter: parent.verticalCenter }
+                Column {
+                    Text { text: systemMonitor.wifiConnected ? systemMonitor.wifiName : "Nicht verbunden"; color: "#ffffff"; font.pixelSize: 13; font.bold: true }
+                    Text { text: systemMonitor.wifiConnected ? "Signal: " + systemMonitor.wifiStrength + "%" : "WiFi: nmtui"; color: "#a0a5c0"; font.pixelSize: 10 }
+                }
+            }
+
+            Rectangle { width: parent.width - 32; height: 1; color: themeManager.glassBorderColor }
+
+            // Volume
+            Column {
+                spacing: 6
+                width: parent.width - 32
+                Row {
+                    spacing: 8
+                    Text { text: systemMonitor.volumeMuted ? "🔇" : "🔊"; font.pixelSize: 14; anchors.verticalCenter: parent.verticalCenter
+                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: systemMonitor.toggleMute() }
+                    }
+                    Text { text: "Lautstärke"; color: "#a0a5c0"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: systemMonitor.volumeLevel + "%"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Slider {
+                    id: volSlider
+                    width: parent.width; from: 0; to: 100; value: systemMonitor.volumeLevel
+                    onMoved: systemMonitor.setVolume(value)
+                    background: Rectangle {
+                        x: volSlider.leftPadding; y: volSlider.topPadding + volSlider.availableHeight / 2 - height / 2
+                        implicitWidth: 200; implicitHeight: 6; width: volSlider.availableWidth; height: implicitHeight; radius: 3; color: "#20ffffff"
+                        Rectangle { width: volSlider.visualPosition * parent.width; height: parent.height; radius: 3; color: themeManager.accentColor }
+                    }
+                    handle: Rectangle {
+                        x: volSlider.leftPadding + volSlider.visualPosition * (volSlider.availableWidth - width)
+                        y: volSlider.topPadding + volSlider.availableHeight / 2 - height / 2
+                        implicitWidth: 16; implicitHeight: 16; radius: 8; color: "#ffffff"
+                    }
+                }
+            }
+
+            // Brightness
+            Column {
+                spacing: 6
+                width: parent.width - 32
+                Row {
+                    spacing: 8
+                    Text { text: "☀"; font.pixelSize: 14; color: "#a0a5c0"; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: "Helligkeit"; color: "#a0a5c0"; font.pixelSize: 12; anchors.verticalCenter: parent.verticalCenter }
+                    Text { text: systemMonitor.brightnessLevel + "%"; color: "#ffffff"; font.pixelSize: 12; font.bold: true; anchors.verticalCenter: parent.verticalCenter }
+                }
+                Slider {
+                    id: brightSlider
+                    width: parent.width; from: 5; to: 100; value: systemMonitor.brightnessLevel
+                    onMoved: systemMonitor.setBrightness(value)
+                    background: Rectangle {
+                        x: brightSlider.leftPadding; y: brightSlider.topPadding + brightSlider.availableHeight / 2 - height / 2
+                        implicitWidth: 200; implicitHeight: 6; width: brightSlider.availableWidth; height: implicitHeight; radius: 3; color: "#20ffffff"
+                        Rectangle { width: brightSlider.visualPosition * parent.width; height: parent.height; radius: 3; color: "#f59e0b" }
+                    }
+                    handle: Rectangle {
+                        x: brightSlider.leftPadding + brightSlider.visualPosition * (brightSlider.availableWidth - width)
+                        y: brightSlider.topPadding + brightSlider.availableHeight / 2 - height / 2
+                        implicitWidth: 16; implicitHeight: 16; radius: 8; color: "#ffffff"
+                    }
+                }
+            }
+
+            Rectangle { width: parent.width - 32; height: 1; color: themeManager.glassBorderColor }
+
+            // Toggle Buttons
+            Row {
+                spacing: 12
+                Rectangle {
+                    width: 80; height: 34; radius: 8; color: "#15ffffff"; border.color: themeManager.glassBorderColor
+                    Column { anchors.centerIn: parent
+                        Text { text: "📶"; font.pixelSize: 12; anchors.horizontalCenter: parent.horizontalCenter }
+                        Text { text: "WiFi"; color: "#a0a5c0"; font.pixelSize: 9; anchors.horizontalCenter: parent.horizontalCenter }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: { quickSettingsPanel.visible = false; systemMonitor.launchApp("xterm -fa Monospace -fs 12 -bg black -fg cyan -T WiFi -e nmtui") }
+                    }
+                }
+                Rectangle {
+                    width: 80; height: 34; radius: 8; color: "#15ffffff"; border.color: themeManager.glassBorderColor
+                    Column { anchors.centerIn: parent
+                        Text { text: "B"; font.pixelSize: 12; color: "#3b82f6"; font.bold: true; anchors.horizontalCenter: parent.horizontalCenter }
+                        Text { text: "Bluetooth"; color: "#a0a5c0"; font.pixelSize: 9; anchors.horizontalCenter: parent.horizontalCenter }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: { quickSettingsPanel.visible = false; systemMonitor.launchApp("xterm -e bash -c 'bluetoothctl show; read'") }
+                    }
+                }
+                Rectangle {
+                    width: 80; height: 34; radius: 8; color: "#15ffffff"; border.color: themeManager.glassBorderColor
+                    Column { anchors.centerIn: parent
+                        Text { text: "🧅"; font.pixelSize: 12; anchors.horizontalCenter: parent.horizontalCenter }
+                        Text { text: "Tor"; color: "#a0a5c0"; font.pixelSize: 9; anchors.horizontalCenter: parent.horizontalCenter }
+                    }
+                    MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor
+                        onClicked: { quickSettingsPanel.visible = false; systemMonitor.launchApp("mb-browser --tor") }
+                    }
                 }
             }
         }
