@@ -1204,10 +1204,12 @@ ApplicationWindow {
                 anchors.topMargin: 25
                 anchors.bottom: parent.bottom
                 anchors.bottomMargin: 20
-                anchors.horizontalCenter: parent.horizontalCenter
-                width: Math.min(parent.width - 40, cellWidth * Math.max(2, Math.round(5 / systemMonitor.uiScale)))
-                cellWidth: 120 * systemMonitor.uiScale
-                cellHeight: 110 * systemMonitor.uiScale
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.leftMargin: 15
+                anchors.rightMargin: 15
+                cellWidth: Math.max(90, Math.floor(width / Math.floor(width / (110 * systemMonitor.uiScale))))
+                cellHeight: 105 * systemMonitor.uiScale
                 clip: true
 
                 model: ListModel {

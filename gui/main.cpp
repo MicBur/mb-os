@@ -203,14 +203,27 @@ public:
     void applyCursorSize() {
         int cursorSize = qRound(24 * m_uiScale);
         qDebug() << "Setting cursor size:" << cursorSize;
-        // Update Xresources for new windows
-        QProcess::startDetached("bash", QStringList() << "-c"
-            << QString("echo 'Xcursor.size: %1' | DISPLAY=:0 xrdb -merge").arg(cursorSize));
-        // Update environment for child processes
+        // Set env for child processes
         qputenv("XCURSOR_SIZE", QByteArray::number(cursorSize));
-        // Apply to root window cursor immediately
-        QProcess::startDetached("bash", QStringList() << "-c"
-            << QString("DISPLAY=:0 xsetroot -cursor_name left_ptr"));
+        // Write full Xresources + cursor icon theme + reload everything
+        QString script = QString(
+            "export DISPLAY=:0 XCURSOR_SIZE=%1;"
+            // Update Xresources
+            "echo 'Xcursor.size: %1' > /tmp/.xcursor_size;"
+            "echo 'Xcursor.theme: DMZ-White' >> /tmp/.xcursor_size;"
+            "xrdb -merge /tmp/.xcursor_size;"
+            // Create cursor theme config
+            "mkdir -p ~/.icons/default;"
+            "echo '[Icon Theme]' > ~/.icons/default/index.theme;"
+            "echo 'Name=Default' >> ~/.icons/default/index.theme;"
+            "echo 'Size=%1' >> ~/.icons/default/index.theme;"
+            "echo 'Inherits=DMZ-White' >> ~/.icons/default/index.theme;"
+            // Reload root cursor
+            "xsetroot -cursor_name left_ptr;"
+            // Tell openbox to reconfigure (picks up new cursor)
+            "openbox --reconfigure 2>/dev/null || true"
+        ).arg(cursorSize);
+        QProcess::startDetached("bash", QStringList() << "-c" << script);
     }
 
     // Home Screen management
