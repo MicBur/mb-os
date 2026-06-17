@@ -51,6 +51,7 @@ public:
     SystemMonitor(QObject *parent = nullptr) : QObject(parent), m_cpuUsage(0), m_memUsage(0),
         m_gpuUsage(0), m_gpuMemUsage(0), m_cpuTemp(0) {
         loadAccessibility();
+        applyCursorSize();
         loadHomeScreen();
         detectCoreCount();
         detectGpuName();
@@ -195,7 +196,21 @@ public:
     Q_INVOKABLE void setUiScale(double scale) {
         m_uiScale = qBound(1.0, scale, 4.0);
         saveAccessibility();
+        applyCursorSize();
         emit uiScaleChanged();
+    }
+
+    void applyCursorSize() {
+        int cursorSize = qRound(24 * m_uiScale);
+        qDebug() << "Setting cursor size:" << cursorSize;
+        // Update Xresources for new windows
+        QProcess::startDetached("bash", QStringList() << "-c"
+            << QString("echo 'Xcursor.size: %1' | DISPLAY=:0 xrdb -merge").arg(cursorSize));
+        // Update environment for child processes
+        qputenv("XCURSOR_SIZE", QByteArray::number(cursorSize));
+        // Apply to root window cursor immediately
+        QProcess::startDetached("bash", QStringList() << "-c"
+            << QString("DISPLAY=:0 xsetroot -cursor_name left_ptr"));
     }
 
     // Home Screen management

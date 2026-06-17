@@ -73,9 +73,10 @@ int main(int argc, char *argv[]) {
         startUrl = posArgs.first();
     }
 
-    // Pass URL to QML context
+    // Pass URL and home path to QML context
     QQmlApplicationEngine engine;
     engine.rootContext()->setContextProperty("startUrl", startUrl);
+    engine.rootContext()->setContextProperty("homePath", QDir::homePath());
 
     const QUrl qmlUrl(u"qrc:/main.qml"_qs);
     QObject::connect(&engine, &QQmlApplicationEngine::objectCreated,

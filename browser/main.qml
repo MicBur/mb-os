@@ -7,13 +7,16 @@ ApplicationWindow {
     visible: true
     width: 1280
     height: 800
-    title: "MB-Browser (Private & Secure)"
+    title: webView.title ? webView.title : "MB-Browser"
 
-    // Custom WebEngine Profile
+    // Custom WebEngine Profile with persistent storage
     WebEngineProfile {
         id: customProfile
         storageName: "mb-browser-profile"
         persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
+        persistentStoragePath: homePath + "/.config/mb-browser/data"
+        cachePath: homePath + "/.config/mb-browser/cache"
+        httpUserAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     }
 
     // Top Header & Toolbar (Futuristic dark glassmorphic styling)
@@ -205,11 +208,9 @@ ApplicationWindow {
             }
         }
 
-        // Handle new window requests (popups)
-        onNewViewRequested: function(request) {
-            if (request.userInitiated) {
-                webView.url = request.requestedUrl;
-            }
+        // Handle new window requests (popups) - open in same view
+        onNewWindowRequested: function(request) {
+            webView.url = request.requestedUrl;
         }
 
         // Inject notification bridge script after page load
