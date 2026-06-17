@@ -325,7 +325,12 @@ apt-get install -y --no-install-recommends \
     grub-efi-amd64-bin \
     efibootmgr \
     calamares \
-    calamares-settings-ubuntu-common
+    calamares-settings-ubuntu-common \
+    xserver-xorg-input-libinput \
+    xinput \
+    onboard \
+    linux-firmware \
+    iio-sensor-proxy
 
 # GPU Driver Auto-Detection (runs on first boot, not in ISO)
 # Keeps ISO small — installs NVIDIA/CUDA only when RTX hardware is detected

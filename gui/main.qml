@@ -1162,6 +1162,14 @@ ApplicationWindow {
                     colorCode: themeManager.secondaryColor
                     onClicked: aiDrawer.open()
                 }
+
+                // On-Screen Keyboard (for touch devices)
+                DockButton {
+                    iconText: "⌨"
+                    label: "Tastatur"
+                    colorCode: "#f59e0b"
+                    onClicked: systemMonitor.launchApp("onboard")
+                }
             }
         }
     }
