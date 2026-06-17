@@ -1294,16 +1294,30 @@ apt-get update && apt-get upgrade -y && apt-get autoremove -y
 echo "Update fertig!"; read -p "Enter..."
 UPD
 
+# --- launch-whatsapp (smart: focus if running, else start) ---
+sudo tee "$ROOTFS/usr/local/bin/launch-whatsapp" > /dev/null << 'WALAUNCHER'
+#!/bin/bash
+WID=$(DISPLAY=:0 xdotool search --name "WhatsApp" 2>/dev/null | head -1)
+if [ -n "$WID" ]; then
+    DISPLAY=:0 xdotool windowactivate "$WID" 2>/dev/null
+    DISPLAY=:0 xdotool windowfocus "$WID" 2>/dev/null
+    DISPLAY=:0 xdotool windowraise "$WID" 2>/dev/null
+else
+    HOME=/home/mbuser DISPLAY=:0 /snap/bin/whatsapp-linux-desktop --no-sandbox &
+fi
+WALAUNCHER
+
 # Alle executable machen
 sudo chmod +x "$ROOTFS/usr/local/bin/launch-antigravity" \
     "$ROOTFS/usr/local/bin/launch-installer" \
     "$ROOTFS/usr/local/bin/launch-android" \
+    "$ROOTFS/usr/local/bin/launch-whatsapp" \
     "$ROOTFS/usr/local/bin/mb-browser" \
     "$ROOTFS/usr/local/bin/mb-lock" \
     "$ROOTFS/usr/local/bin/mb-screenshot" \
     "$ROOTFS/usr/local/bin/mb-update"
 
-echo "  ✓ 7 Launcher-Scripts + SSH + Firefox-Pin geschrieben"
+echo "  ✓ 8 Launcher-Scripts + SSH + Firefox-Pin geschrieben"
 
 sudo mksquashfs "$ROOTFS" "$ISO_DIR/casper/filesystem.squashfs" -noappend
 

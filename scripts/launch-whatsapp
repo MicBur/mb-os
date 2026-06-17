@@ -1,0 +1,16 @@
+#!/bin/bash
+# Smart launcher for WhatsApp Desktop (snap)
+# If already running: focus existing window
+# If not running: start it
+
+WID=$(DISPLAY=:0 xdotool search --name "WhatsApp" 2>/dev/null | head -1)
+
+if [ -n "$WID" ]; then
+    # Already running — bring to front
+    DISPLAY=:0 xdotool windowactivate "$WID" 2>/dev/null
+    DISPLAY=:0 xdotool windowfocus "$WID" 2>/dev/null
+    DISPLAY=:0 xdotool windowraise "$WID" 2>/dev/null
+else
+    # Not running — start it
+    HOME=/home/mbuser DISPLAY=:0 /snap/bin/whatsapp-linux-desktop --no-sandbox &
+fi
