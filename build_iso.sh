@@ -280,7 +280,7 @@ apt-get install -y --no-install-recommends \
     xsel \
     dunst \
     libnotify-bin \
-    wasistlos \
+    snapd \
     whiptail \
     parted \
     dosfstools \

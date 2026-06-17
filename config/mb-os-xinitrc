@@ -106,9 +106,8 @@ runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin"
 SHELL_PID=$!
 
 # Wait for shell to start, then launch WhatsApp desktop app minimized
-(sleep 8; runuser -u mbuser -- env HOME="/home/mbuser" DISPLAY="$DISPLAY" wasistlos &
-sleep 5; DISPLAY="$DISPLAY" xdotool search --name "WasIstLos" windowminimize 2>/dev/null
-DISPLAY="$DISPLAY" xdotool search --name "WhatsApp" windowminimize 2>/dev/null) &
+(sleep 8; runuser -u mbuser -- env HOME="/home/mbuser" DISPLAY="$DISPLAY" /snap/bin/whatsapp-linux-desktop --no-sandbox &
+sleep 5; DISPLAY="$DISPLAY" xdotool search --name "WhatsApp" windowminimize 2>/dev/null) &
 
 # Wait for the shell to exit
 wait $SHELL_PID

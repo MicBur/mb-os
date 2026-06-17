@@ -98,6 +98,7 @@ public:
         QVariantList apps;
         QStringList searchPaths = {
             "/usr/share/applications",
+            "/var/lib/snapd/desktop/applications",
             QDir::homePath() + "/.local/share/applications"
         };
         QSet<QString> seen; // Avoid duplicates by exec
