@@ -102,7 +102,16 @@ OPENBOX_PID=$!
 runuser -u mbuser -- env HOME="/home/mbuser" MEMORY_DIR="/home/mbuser/.mb-os/memory" python3 /usr/local/share/mb-os/memory_daemon.py > /tmp/memory-daemon.log 2>&1 &
 
 # Start our custom Qt 6 Desktop Shell as mbuser
-runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell 2>/tmp/mb-shell-error.log
+runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" /usr/local/bin/mb-os-shell 2>/tmp/mb-shell-error.log &
+SHELL_PID=$!
+
+# Wait for shell to start, then launch WhatsApp desktop app minimized
+(sleep 8; runuser -u mbuser -- env HOME="/home/mbuser" DISPLAY="$DISPLAY" wasistlos &
+sleep 5; DISPLAY="$DISPLAY" xdotool search --name "WasIstLos" windowminimize 2>/dev/null
+DISPLAY="$DISPLAY" xdotool search --name "WhatsApp" windowminimize 2>/dev/null) &
+
+# Wait for the shell to exit
+wait $SHELL_PID
 
 # FALLBACK: Wenn mb-os-shell crasht, Desktop trotzdem nutzbar halten
 echo ">>> mb-os-shell beendet (Code: $?), starte Fallback-Desktop..." >> /tmp/mb-gui.log
