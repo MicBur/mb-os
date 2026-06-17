@@ -10,6 +10,7 @@ ApplicationWindow {
     title: "MB-OS Desktop Shell"
 
     property bool homeEditMode: false
+    property int homeContextIndex: -1
     property int currentHomePage: 0
 
     // Deferred home screen add (avoids layout deadlock with popups)
@@ -741,6 +742,12 @@ ApplicationWindow {
 
         Component.onCompleted: refreshHomeGrid()
 
+        // Refresh grid when C++ signals homeScreenChanged (add/remove/reorder)
+        Connections {
+            target: systemMonitor
+            function onHomeScreenChanged() { refreshHomeGrid(); }
+        }
+
         // Clock widget (page 0 only)
         Column {
             visible: currentHomePage === 0
@@ -809,6 +816,34 @@ ApplicationWindow {
                 width: homeGrid.cellWidth
                 height: homeGrid.cellHeight
 
+                // Full-area mouse handler for long-press edit mode + right-click remove
+                MouseArea {
+                    anchors.fill: parent
+                    enabled: !homeEditMode
+                    acceptedButtons: Qt.LeftButton | Qt.RightButton
+                    onPressAndHold: homeEditMode = true
+                    onClicked: function(mouse) {
+                        if (mouse.button === Qt.RightButton) {
+                            homeContextIndex = index;
+                            homeContextMenu.x = mouse.x;
+                            homeContextMenu.y = mouse.y;
+                            homeContextMenu.open();
+                        } else {
+                            if (model.cmd === "__power_menu__") {
+                                powerMenu.open();
+                            } else if (model.cmd === "__ai_drawer__") {
+                                aiDrawer.open();
+                            } else if (model.cmd === "__antigravity__") {
+                                systemMonitor.launchApp("launch-antigravity");
+                            } else {
+                                systemMonitor.launchApp(model.cmd);
+                            }
+                        }
+                    }
+                    hoverEnabled: true
+                    cursorShape: Qt.PointingHandCursor
+                }
+
                 Column {
                     anchors.centerIn: parent
                     spacing: 6
@@ -863,21 +898,8 @@ ApplicationWindow {
                             id: homeIconMa
                             anchors.fill: parent
                             hoverEnabled: true
-                            cursorShape: Qt.PointingHandCursor
-                            onClicked: {
-                                if (!homeEditMode) {
-                                    if (model.cmd === "__power_menu__") {
-                                        powerMenu.open();
-                                    } else if (model.cmd === "__ai_drawer__") {
-                                        aiDrawer.open();
-                                    } else if (model.cmd === "__antigravity__") {
-                                        systemMonitor.launchApp("launch-antigravity");
-                                    } else {
-                                        systemMonitor.launchApp(model.cmd);
-                                    }
-                                }
-                            }
-                            onPressAndHold: homeEditMode = true
+                            propagateComposedEvents: true
+                            acceptedButtons: Qt.NoButton
                         }
                     }
 
@@ -889,6 +911,46 @@ ApplicationWindow {
                         width: 90 * systemMonitor.uiScale
                         elide: Text.ElideRight
                         anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                }
+            }
+        }
+
+        // Right-click context menu for homescreen apps
+        Popup {
+            id: homeContextMenu
+            width: 180 * systemMonitor.uiScale
+            height: 40 * systemMonitor.uiScale
+            modal: true
+            closePolicy: Popup.CloseOnPressOutside | Popup.CloseOnEscape
+            background: Rectangle {
+                color: "#1a1e2e"
+                border.color: "#ff4060"
+                border.width: 1
+                radius: 10
+            }
+            contentItem: Rectangle {
+                color: "transparent"
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    hoverEnabled: true
+                    onClicked: {
+                        if (homeContextIndex >= 0) {
+                            systemMonitor.removeFromHomeScreen(currentHomePage, homeContextIndex);
+                        }
+                        homeContextMenu.close();
+                    }
+                    Rectangle {
+                        anchors.fill: parent
+                        color: parent.containsMouse ? "#30ff4060" : "transparent"
+                        radius: 8
+                        Text {
+                            text: "🗑  Vom Startbildschirm entfernen"
+                            color: "#ff4060"
+                            font.pixelSize: 12 * systemMonitor.uiScale
+                            anchors.centerIn: parent
+                        }
                     }
                 }
             }
