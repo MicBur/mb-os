@@ -10,6 +10,7 @@ ApplicationWindow {
     title: "MB-OS Desktop Shell"
 
     property bool homeEditMode: false
+    property int currentHomePage: 0
 
     // Background Image with deep dark premium hues and a soft glow
     background: Image {
@@ -712,199 +713,193 @@ ApplicationWindow {
 
         // ===== Android-Style Home Screen =====
 
-        SwipeView {
-            id: homeSwipe
-            anchors.fill: parent
-            anchors.bottomMargin: 130
-            currentIndex: 0
+        function refreshHomeGrid() {
+            homeGridModel.clear();
+            var apps = systemMonitor.getHomePageApps(currentHomePage);
+            if (apps) {
+                for (var i = 0; i < apps.length; i++) {
+                    homeGridModel.append(apps[i]);
+                }
+            }
+        }
+
+        // Deferred home screen add (avoids layout deadlock with popups)
+        Timer {
+            id: deferredHomeAdd
+            interval: 200
+            repeat: false
+            property string pName; property string pIcon; property string pCmd; property string pClr; property int pPage
+            onTriggered: {
+                systemMonitor.addToHomeScreen(pPage, pName, pIcon, pCmd, pClr);
+                refreshHomeGrid();
+            }
+        }
+
+        Component.onCompleted: refreshHomeGrid()
+
+        // Clock widget (page 0 only)
+        Column {
+            visible: currentHomePage === 0
+            anchors.top: parent.top
+            anchors.topMargin: 30
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: 4
+            z: 5
+
+            Text {
+                text: Qt.formatTime(new Date(), "HH:mm")
+                font.pixelSize: 64
+                font.bold: true
+                font.family: "Outfit, Inter, monospace"
+                font.letterSpacing: 4
+                color: "#ffffff"
+                opacity: 0.2
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Timer {
+                    interval: 1000; running: true; repeat: true
+                    onTriggered: parent.text = Qt.formatTime(new Date(), "HH:mm")
+                }
+            }
+
+            Text {
+                text: Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+                font.pixelSize: 16
+                color: "#e2e8f0"
+                opacity: 0.35
+                font.family: "Outfit, Inter, sans-serif"
+                font.weight: Font.Light
+                anchors.horizontalCenter: parent.horizontalCenter
+
+                Timer {
+                    interval: 60000; running: true; repeat: true
+                    onTriggered: parent.text = Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+                }
+
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: Qt.PointingHandCursor
+                    onClicked: systemMonitor.launchApp("mb-browser --url https://calendar.google.com")
+                }
+            }
+        }
+
+        // App shortcuts grid
+        GridView {
+            id: homeGrid
+            anchors.top: parent.top
+            anchors.topMargin: currentHomePage === 0 ? 150 : 30
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 140
+            anchors.horizontalCenter: parent.horizontalCenter
+            width: Math.min(parent.width - 40, cellWidth * 4)
+            cellWidth: 110 * systemMonitor.uiScale
+            cellHeight: 110 * systemMonitor.uiScale
             clip: true
 
-            Repeater {
-                model: systemMonitor.homePageCount
+            model: ListModel { id: homeGridModel }
 
-                Item {
-                    property int pageIndex: index
+            delegate: Item {
+                width: homeGrid.cellWidth
+                height: homeGrid.cellHeight
 
-                    // Clock widget on page 0
-                    Column {
-                        visible: pageIndex === 0
-                        anchors.top: parent.top
-                        anchors.topMargin: 30
+                Column {
+                    anchors.centerIn: parent
+                    spacing: 6
+
+                    Rectangle {
+                        width: 56 * systemMonitor.uiScale
+                        height: 56 * systemMonitor.uiScale
+                        radius: 16 * systemMonitor.uiScale
+                        color: homeIconMa.containsMouse ? Qt.rgba(1,1,1,0.15) : Qt.rgba(1,1,1,0.06)
+                        border.color: model.clr ? model.clr : "#ffffff"
+                        border.width: homeIconMa.containsMouse ? 2 : 1
                         anchors.horizontalCenter: parent.horizontalCenter
-                        spacing: 4
+
+                        Behavior on color { ColorAnimation { duration: 120 } }
 
                         Text {
-                            text: Qt.formatTime(new Date(), "HH:mm")
-                            font.pixelSize: 64
+                            text: model.icon ? model.icon : "?"
+                            anchors.centerIn: parent
+                            color: model.clr ? model.clr : "#ffffff"
+                            font.pixelSize: 20 * systemMonitor.uiScale
                             font.bold: true
-                            font.family: "Outfit, Inter, monospace"
-                            font.letterSpacing: 4
-                            color: "#ffffff"
-                            opacity: 0.2
-                            anchors.horizontalCenter: parent.horizontalCenter
-
-                            Timer {
-                                interval: 1000; running: true; repeat: true
-                                onTriggered: parent.text = Qt.formatTime(new Date(), "HH:mm")
-                            }
                         }
 
-                        Text {
-                            text: Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
-                            font.pixelSize: 16
-                            color: "#e2e8f0"
-                            opacity: 0.35
-                            font.family: "Outfit, Inter, sans-serif"
-                            font.weight: Font.Light
-                            anchors.horizontalCenter: parent.horizontalCenter
+                        // Delete badge in edit mode
+                        Rectangle {
+                            visible: homeEditMode
+                            width: 20; height: 20; radius: 10
+                            color: "#ff4060"
+                            anchors.top: parent.top
+                            anchors.right: parent.right
+                            anchors.topMargin: -5
+                            anchors.rightMargin: -5
 
-                            Timer {
-                                interval: 60000; running: true; repeat: true
-                                onTriggered: parent.text = Qt.formatDate(new Date(), "dddd, dd. MMMM yyyy")
+                            Text {
+                                text: "\u2715"
+                                color: "#ffffff"
+                                font.pixelSize: 12
+                                font.bold: true
+                                anchors.centerIn: parent
                             }
-
                             MouseArea {
                                 anchors.fill: parent
                                 cursorShape: Qt.PointingHandCursor
-                                onClicked: systemMonitor.launchApp("mb-browser --url https://calendar.google.com")
+                                onClicked: systemMonitor.removeFromHomeScreen(currentHomePage, index)
                             }
+                        }
+
+                        scale: homeIconMa.containsMouse ? 1.1 : 1.0
+                        Behavior on scale { NumberAnimation { duration: 120 } }
+
+                        MouseArea {
+                            id: homeIconMa
+                            anchors.fill: parent
+                            hoverEnabled: true
+                            cursorShape: Qt.PointingHandCursor
+                            onClicked: {
+                                if (!homeEditMode) {
+                                    if (model.cmd === "__power_menu__") {
+                                        powerMenu.open();
+                                    } else if (model.cmd === "__ai_drawer__") {
+                                        aiDrawer.open();
+                                    } else if (model.cmd === "__antigravity__") {
+                                        systemMonitor.launchApp("launch-antigravity");
+                                    } else {
+                                        systemMonitor.launchApp(model.cmd);
+                                    }
+                                }
+                            }
+                            onPressAndHold: homeEditMode = true
                         }
                     }
 
-                    // App shortcuts grid
-                    GridView {
-                        id: homeGrid
-                        anchors.top: parent.top
-                        anchors.topMargin: pageIndex === 0 ? 160 : 30
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 10
-                        anchors.horizontalCenter: parent.horizontalCenter
-                        width: Math.min(parent.width - 40, cellWidth * 4)
-                        cellWidth: 110 * systemMonitor.uiScale
-                        cellHeight: 110 * systemMonitor.uiScale
-                        clip: true
-
-                        model: {
-                            var apps = systemMonitor.getHomePageApps(pageIndex);
-                            return apps ? apps : [];
-                        }
-
-                        delegate: Item {
-                            width: homeGrid.cellWidth
-                            height: homeGrid.cellHeight
-
-                            Column {
-                                anchors.centerIn: parent
-                                spacing: 6
-
-                                Rectangle {
-                                    width: 56 * systemMonitor.uiScale
-                                    height: 56 * systemMonitor.uiScale
-                                    radius: 16 * systemMonitor.uiScale
-                                    color: homeIconMa.containsMouse ? Qt.rgba(1,1,1,0.15) : Qt.rgba(1,1,1,0.06)
-                                    border.color: modelData.clr ? modelData.clr : "#ffffff"
-                                    border.width: homeIconMa.containsMouse ? 2 : 1
-                                    anchors.horizontalCenter: parent.horizontalCenter
-
-                                    Behavior on color { ColorAnimation { duration: 120 } }
-
-                                    Text {
-                                        text: modelData.icon ? modelData.icon : "?"
-                                        anchors.centerIn: parent
-                                        color: modelData.clr ? modelData.clr : "#ffffff"
-                                        font.pixelSize: 20 * systemMonitor.uiScale
-                                        font.bold: true
-                                    }
-
-                                    // Delete badge in edit mode
-                                    Rectangle {
-                                        visible: homeEditMode
-                                        width: 20; height: 20; radius: 10
-                                        color: "#ff4060"
-                                        anchors.top: parent.top
-                                        anchors.right: parent.right
-                                        anchors.topMargin: -5
-                                        anchors.rightMargin: -5
-
-                                        Text {
-                                            text: "\u2715"
-                                            color: "#ffffff"
-                                            font.pixelSize: 12
-                                            font.bold: true
-                                            anchors.centerIn: parent
-                                        }
-                                        MouseArea {
-                                            anchors.fill: parent
-                                            cursorShape: Qt.PointingHandCursor
-                                            onClicked: systemMonitor.removeFromHomeScreen(pageIndex, index)
-                                        }
-                                    }
-
-                                    scale: homeIconMa.containsMouse ? 1.1 : (homeEditMode ? 0.95 : 1.0)
-                                    Behavior on scale { NumberAnimation { duration: 120 } }
-
-                                    // Wiggle animation in edit mode
-                                    rotation: homeEditMode ? 2 : 0
-                                    SequentialAnimation on rotation {
-                                        running: homeEditMode
-                                        loops: Animation.Infinite
-                                        NumberAnimation { to: 2; duration: 150 }
-                                        NumberAnimation { to: -2; duration: 150 }
-                                    }
-
-                                    MouseArea {
-                                        id: homeIconMa
-                                        anchors.fill: parent
-                                        hoverEnabled: true
-                                        cursorShape: Qt.PointingHandCursor
-                                        onClicked: {
-                                            if (!homeEditMode) {
-                                                if (modelData.cmd === "__power_menu__") {
-                                                    powerMenu.open();
-                                                } else if (modelData.cmd === "__ai_drawer__") {
-                                                    aiDrawer.open();
-                                                } else if (modelData.cmd === "__antigravity__") {
-                                                    systemMonitor.launchApp("launch-antigravity");
-                                                } else {
-                                                    systemMonitor.launchApp(modelData.cmd);
-                                                }
-                                            }
-                                        }
-                                        onPressAndHold: homeEditMode = true
-                                    }
-                                }
-
-                                Text {
-                                    text: modelData.name ? modelData.name : ""
-                                    color: "#c0c8d8"
-                                    font.pixelSize: 10 * systemMonitor.uiScale
-                                    horizontalAlignment: Text.AlignHCenter
-                                    width: 90 * systemMonitor.uiScale
-                                    elide: Text.ElideRight
-                                    anchors.horizontalCenter: parent.horizontalCenter
-                                }
-                            }
-                        }
-                    }
-
-                    // Empty state
                     Text {
-                        visible: {
-                            var apps = systemMonitor.getHomePageApps(pageIndex);
-                            return (!apps || apps.length === 0) && pageIndex > 0;
-                        }
-                        text: "Leere Seite\nLange dr\u00fccken zum Bearbeiten\nApps aus dem Drawer hierher hinzuf\u00fcgen"
-                        color: "#50ffffff"
-                        font.pixelSize: 14
+                        text: model.name ? model.name : ""
+                        color: "#c0c8d8"
+                        font.pixelSize: 10 * systemMonitor.uiScale
                         horizontalAlignment: Text.AlignHCenter
-                        anchors.centerIn: parent
-                        lineHeight: 1.6
+                        width: 90 * systemMonitor.uiScale
+                        elide: Text.ElideRight
+                        anchors.horizontalCenter: parent.horizontalCenter
                     }
                 }
             }
         }
 
-        // Page indicator dots
+        // Empty state
+        Text {
+            visible: homeGridModel.count === 0 && currentHomePage > 0
+            text: "Leere Seite\nApps aus dem Drawer hierher hinzuf\u00fcgen"
+            color: "#50ffffff"
+            font.pixelSize: 14
+            horizontalAlignment: Text.AlignHCenter
+            anchors.centerIn: parent
+            lineHeight: 1.6
+        }
+
+        // Page indicator + nav
         Row {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.bottom: parent.bottom
@@ -912,15 +907,46 @@ ApplicationWindow {
             spacing: 8
             z: 10
 
+            // Left arrow
+            Text {
+                text: "\u25C0"
+                color: currentHomePage > 0 ? "#ffffff" : "#30ffffff"
+                font.pixelSize: 16
+                anchors.verticalCenter: parent.verticalCenter
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: currentHomePage > 0 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: { if (currentHomePage > 0) { currentHomePage--; refreshHomeGrid(); } }
+                }
+            }
+
             Repeater {
                 model: systemMonitor.homePageCount
                 Rectangle {
-                    width: homeSwipe.currentIndex === index ? 16 : 8
+                    width: currentHomePage === index ? 16 : 8
                     height: 8
                     radius: 4
-                    color: homeSwipe.currentIndex === index ? themeManager.accentColor : "#40ffffff"
+                    color: currentHomePage === index ? themeManager.accentColor : "#40ffffff"
                     Behavior on width { NumberAnimation { duration: 150 } }
                     Behavior on color { ColorAnimation { duration: 150 } }
+                    MouseArea {
+                        anchors.fill: parent
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: { currentHomePage = index; refreshHomeGrid(); }
+                    }
+                }
+            }
+
+            // Right arrow
+            Text {
+                text: "\u25B6"
+                color: currentHomePage < systemMonitor.homePageCount - 1 ? "#ffffff" : "#30ffffff"
+                font.pixelSize: 16
+                anchors.verticalCenter: parent.verticalCenter
+                MouseArea {
+                    anchors.fill: parent
+                    cursorShape: currentHomePage < systemMonitor.homePageCount - 1 ? Qt.PointingHandCursor : Qt.ArrowCursor
+                    onClicked: { if (currentHomePage < systemMonitor.homePageCount - 1) { currentHomePage++; refreshHomeGrid(); } }
                 }
             }
         }
@@ -1305,10 +1331,11 @@ ApplicationWindow {
     Popup {
         id: addToHomePopup
         width: 320
-        height: addToHomeCol.implicitHeight + 40
+        height: 280
         modal: true
         focus: true
         anchors.centerIn: parent
+        padding: 20
 
         property string appName: ""
         property string appIcon: ""
@@ -1317,8 +1344,7 @@ ApplicationWindow {
         property int targetPage: 0
 
         background: Rectangle {
-            color: themeManager.glassBgColor
-            opacity: 0.95
+            color: "#e00a0e1a"
             radius: 16
             border.color: themeManager.accentColor
             border.width: 1
@@ -1401,46 +1427,51 @@ ApplicationWindow {
                 spacing: 15
                 anchors.horizontalCenter: parent.horizontalCenter
 
-                Button {
-                    id: addHomeBtn
-                    text: "Hinzuf\u00fcgen"
-                    width: 120
-                    background: Rectangle {
-                        color: addHomeBtn.hovered ? Qt.rgba(0.1, 0.7, 0.95, 0.3) : themeManager.glassBgColor
-                        border.color: themeManager.accentColor
-                        radius: 8
-                    }
-                    contentItem: Text {
-                        text: parent.text
+                Rectangle {
+                    width: 120; height: 40; radius: 8
+                    color: addBtnMa.containsMouse ? Qt.rgba(0.1, 0.7, 0.95, 0.3) : "#15ffffff"
+                    border.color: themeManager.accentColor; border.width: 1
+                    Text {
+                        text: "Hinzuf\u00fcgen"
                         color: themeManager.accentColor
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
-                        font.bold: true
+                        font.bold: true; font.pixelSize: 14
+                        anchors.centerIn: parent
                     }
-                    onClicked: {
-                        systemMonitor.addToHomeScreen(
-                            addToHomePopup.targetPage,
-                            addToHomePopup.appName,
-                            addToHomePopup.appIcon,
-                            addToHomePopup.appCmd,
-                            addToHomePopup.appClr
-                        );
-                        addToHomePopup.close();
+                    MouseArea {
+                        id: addBtnMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            console.log("ADD TO HOME: page=" + addToHomePopup.targetPage + " name=" + addToHomePopup.appName);
+                            deferredHomeAdd.pPage = addToHomePopup.targetPage;
+                            deferredHomeAdd.pName = addToHomePopup.appName;
+                            deferredHomeAdd.pIcon = addToHomePopup.appIcon;
+                            deferredHomeAdd.pCmd = addToHomePopup.appCmd;
+                            deferredHomeAdd.pClr = addToHomePopup.appClr;
+                            addToHomePopup.close();
+                            appDrawerOverlay.close();
+                            deferredHomeAdd.start();
+                        }
                     }
                 }
 
-                Button {
-                    id: cancelHomeBtn
-                    text: "Abbrechen"
-                    width: 100
-                    flat: true
-                    contentItem: Text {
-                        text: parent.text
-                        color: cancelHomeBtn.hovered ? "#ffffff" : "#80a5c0"
-                        horizontalAlignment: Text.AlignHCenter
-                        verticalAlignment: Text.AlignVCenter
+                Rectangle {
+                    width: 100; height: 40; radius: 8
+                    color: cancelBtnMa.containsMouse ? "#20ffffff" : "transparent"
+                    Text {
+                        text: "Abbrechen"
+                        color: cancelBtnMa.containsMouse ? "#ffffff" : "#80a5c0"
+                        font.pixelSize: 13
+                        anchors.centerIn: parent
                     }
-                    onClicked: addToHomePopup.close()
+                    MouseArea {
+                        id: cancelBtnMa
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: addToHomePopup.close()
+                    }
                 }
             }
         }
