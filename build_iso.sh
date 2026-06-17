@@ -330,7 +330,11 @@ apt-get install -y --no-install-recommends \
     xinput \
     onboard \
     linux-firmware \
-    iio-sensor-proxy
+    iio-sensor-proxy \
+    ffmpeg \
+    python3-opencv \
+    python3-numpy \
+    v4l-utils
 
 # GPU Driver Auto-Detection (runs on first boot, not in ISO)
 # Keeps ISO small — installs NVIDIA/CUDA only when RTX hardware is detected
@@ -1327,6 +1331,9 @@ else
 fi
 WALAUNCHER
 
+# --- face-auth.py (Face Recognition with OpenCV + OpenVINO) ---
+sudo cp "$SCRIPT_DIR/scripts/face-auth.py" "$ROOTFS/usr/local/bin/face-auth.py"
+
 # Alle executable machen
 sudo chmod +x "$ROOTFS/usr/local/bin/launch-antigravity" \
     "$ROOTFS/usr/local/bin/launch-installer" \
@@ -1335,9 +1342,10 @@ sudo chmod +x "$ROOTFS/usr/local/bin/launch-antigravity" \
     "$ROOTFS/usr/local/bin/mb-browser" \
     "$ROOTFS/usr/local/bin/mb-lock" \
     "$ROOTFS/usr/local/bin/mb-screenshot" \
-    "$ROOTFS/usr/local/bin/mb-update"
+    "$ROOTFS/usr/local/bin/mb-update" \
+    "$ROOTFS/usr/local/bin/face-auth.py"
 
-echo "  ✓ 8 Launcher-Scripts + SSH + Firefox-Pin geschrieben"
+echo "  ✓ 9 Launcher-Scripts + face-auth + SSH + Firefox-Pin geschrieben"
 
 sudo mksquashfs "$ROOTFS" "$ISO_DIR/casper/filesystem.squashfs" -noappend
 

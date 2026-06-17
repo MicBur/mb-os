@@ -12,6 +12,16 @@ ApplicationWindow {
     property bool homeEditMode: false
     property int homeContextIndex: -1
     property int currentHomePage: 0
+    property bool screenLocked: false
+    property string pinInput: ""
+    property string lockStatus: ""
+
+    // Set default PIN 0000 if no PIN exists
+    Component.onCompleted: {
+        if (!systemMonitor.hasPin()) {
+            systemMonitor.setPin("0000");
+        }
+    }
 
     // Deferred home screen add (avoids layout deadlock with popups)
     Timer {
@@ -1319,7 +1329,7 @@ ApplicationWindow {
                     ListElement { name: "Tor Status"; icon: "T"; cmd: "xterm -bg black -fg magenta -fs 11 -e bash -c 'systemctl status tor; read'"; clr: "#7c3aed"; category: "system" }
                     ListElement { name: "Installieren"; icon: "⬇"; cmd: "xterm -e launch-installer"; clr: "#f59e0b"; category: "system" }
                     ListElement { name: "Android"; icon: "🤖"; cmd: "launch-android"; clr: "#3ddc84"; category: "system" }
-                    ListElement { name: "Sperren"; icon: "🔒"; cmd: "mb-lock"; clr: "#8b5cf6"; category: "system" }
+                    ListElement { name: "Sperren"; icon: "🔒"; cmd: "__lock_screen__"; clr: "#8b5cf6"; category: "system" }
                     ListElement { name: "Audio"; icon: "🔊"; cmd: "xterm -e bash -c 'wpctl status; read'"; clr: "#06b6d4"; category: "system" }
                     ListElement { name: "Bluetooth"; icon: "B"; cmd: "xterm -e bash -c 'bluetoothctl show; read'"; clr: "#3b82f6"; category: "system" }
                     ListElement { name: "Firewall"; icon: "🛡"; cmd: "xterm -e bash -c 'sudo ufw status verbose; read'"; clr: "#ef4444"; category: "system" }
@@ -1392,9 +1402,11 @@ ApplicationWindow {
                                     } else if (model.cmd === "__power_menu__") {
                                         appDrawerOverlay.close();
                                         powerMenu.open();
+                                    } else if (model.cmd === "__lock_screen__") {
+                                        appDrawerOverlay.close();
+                                        screenLocked = true;
                                     } else if (model.cmd === "__antigravity__") {
                                         appDrawerOverlay.close();
-                                        // Desktop App → agy CLI → gemini CLI → Web
                                         systemMonitor.launchApp("launch-antigravity");
                                     } else {
                                         appDrawerOverlay.close();
@@ -2062,7 +2074,8 @@ ApplicationWindow {
                                 { label: "\u2699  System",             idx: 2 },
                                 { label: "\uD83C\uDFA8  Darstellung",  idx: 3 },
                                 { label: "\u2139  \u00DCber",           idx: 4 },
-                                { label: "\u267F  Barrierefreiheit",   idx: 5 }
+                                { label: "\u267F  Barrierefreiheit",   idx: 5 },
+                                { label: "\uD83D\uDD12  Sicherheit",   idx: 6 }
                             ]
 
                             delegate: Rectangle {
@@ -2682,6 +2695,281 @@ ApplicationWindow {
                                     }
                                 }
                             }
+
+                            // ──────── SICHERHEIT ────────
+                            Column {
+                                width: parent.width
+                                spacing: 16
+                                visible: settingsPanel.selectedCategory === 6
+
+                                property string oldPinField: ""
+                                property string newPinField: ""
+                                property string pinChangeStatus: ""
+
+                                Text {
+                                    text: "🔒  Sicherheit"
+                                    color: "#ffffff"
+                                    font.pixelSize: 22
+                                    font.bold: true
+                                }
+
+                                // Face Recognition
+                                Rectangle {
+                                    width: parent.width
+                                    height: faceCol.implicitHeight + 32
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        id: faceCol
+                                        anchors.fill: parent
+                                        anchors.margins: 16
+                                        spacing: 12
+
+                                        Text {
+                                            text: "Gesichtserkennung"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 16
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            text: systemMonitor.hasFaceData()
+                                                ? "✓ Gesicht registriert — Lock Screen erkennt dich automatisch"
+                                                : "Noch kein Gesicht registriert"
+                                            color: systemMonitor.hasFaceData() ? "#4ade80" : "#94a3b8"
+                                            font.pixelSize: 13
+                                            wrapMode: Text.WordWrap
+                                            width: parent.width
+                                        }
+
+                                        Text {
+                                            text: "Schaue von mehreren Seiten in die Kamera (3 Aufnahmen)."
+                                            color: "#667788"
+                                            font.pixelSize: 12
+                                        }
+
+                                        Button {
+                                            width: 250
+                                            height: 44
+                                            background: Rectangle {
+                                                radius: 10
+                                                color: parent.hovered ? "#3b82f6" : "#2563eb"
+                                            }
+                                            contentItem: Text {
+                                                text: systemMonitor.hasFaceData() ? "📷 Gesicht neu registrieren" : "📷 Gesicht registrieren"
+                                                color: "#ffffff"
+                                                font.pixelSize: 14
+                                                horizontalAlignment: Text.AlignHCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                            onClicked: systemMonitor.enrollFace()
+                                        }
+                                    }
+                                }
+
+                                // PIN Change
+                                Rectangle {
+                                    width: parent.width
+                                    height: pinCol.implicitHeight + 32
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        id: pinCol
+                                        anchors.fill: parent
+                                        anchors.margins: 16
+                                        spacing: 12
+
+                                        Text {
+                                            text: "PIN ändern"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 16
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            text: "Standard-PIN: 0000"
+                                            color: "#667788"
+                                            font.pixelSize: 12
+                                        }
+
+                                        Row {
+                                            spacing: 12
+
+                                            Column {
+                                                spacing: 4
+                                                Text { text: "Alter PIN"; color: "#94a3b8"; font.pixelSize: 12 }
+                                                TextField {
+                                                    id: oldPinInput
+                                                    width: 120
+                                                    height: 40
+                                                    echoMode: TextInput.Password
+                                                    maximumLength: 4
+                                                    font.pixelSize: 18
+                                                    color: "#ffffff"
+                                                    background: Rectangle {
+                                                        radius: 8
+                                                        color: "#1a1a2e"
+                                                        border.color: "#334155"
+                                                    }
+                                                }
+                                            }
+
+                                            Column {
+                                                spacing: 4
+                                                Text { text: "Neuer PIN"; color: "#94a3b8"; font.pixelSize: 12 }
+                                                TextField {
+                                                    id: newPinInput
+                                                    width: 120
+                                                    height: 40
+                                                    echoMode: TextInput.Password
+                                                    maximumLength: 4
+                                                    font.pixelSize: 18
+                                                    color: "#ffffff"
+                                                    background: Rectangle {
+                                                        radius: 8
+                                                        color: "#1a1a2e"
+                                                        border.color: "#334155"
+                                                    }
+                                                }
+                                            }
+
+                                            Button {
+                                                anchors.bottom: parent.bottom
+                                                width: 120
+                                                height: 40
+                                                background: Rectangle {
+                                                    radius: 8
+                                                    color: parent.hovered ? "#22c55e" : "#16a34a"
+                                                }
+                                                contentItem: Text {
+                                                    text: "Ändern"
+                                                    color: "#ffffff"
+                                                    font.pixelSize: 14
+                                                    horizontalAlignment: Text.AlignHCenter
+                                                    verticalAlignment: Text.AlignVCenter
+                                                }
+                                                onClicked: {
+                                                    if (newPinInput.text.length !== 4) {
+                                                        pinChangeResult.text = "PIN muss 4 Stellen haben!"
+                                                        pinChangeResult.color = "#ef4444"
+                                                    } else if (systemMonitor.changePin(oldPinInput.text, newPinInput.text)) {
+                                                        pinChangeResult.text = "✓ PIN geändert!"
+                                                        pinChangeResult.color = "#4ade80"
+                                                        oldPinInput.text = ""
+                                                        newPinInput.text = ""
+                                                    } else {
+                                                        pinChangeResult.text = "Alter PIN falsch!"
+                                                        pinChangeResult.color = "#ef4444"
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Text {
+                                            id: pinChangeResult
+                                            text: ""
+                                            font.pixelSize: 13
+                                        }
+                                    }
+                                }
+
+                                // Intruder Photos
+                                Rectangle {
+                                    width: parent.width
+                                    height: intruderCol.implicitHeight + 32
+                                    radius: 12
+                                    color: themeManager.glassBgColor
+                                    border.color: themeManager.glassBorderColor
+                                    border.width: 1
+
+                                    Column {
+                                        id: intruderCol
+                                        anchors.fill: parent
+                                        anchors.margins: 16
+                                        spacing: 12
+
+                                        Text {
+                                            text: "🚨  Lock Screen Versuche"
+                                            color: "#e2e8f0"
+                                            font.pixelSize: 16
+                                            font.bold: true
+                                        }
+
+                                        Text {
+                                            text: "Bei falschem PIN wird automatisch ein Foto aufgenommen."
+                                            color: "#667788"
+                                            font.pixelSize: 12
+                                        }
+
+                                        // Photo Grid
+                                        Grid {
+                                            columns: 4
+                                            spacing: 10
+                                            width: parent.width
+
+                                            Repeater {
+                                                id: intruderRepeater
+                                                model: settingsPanel.selectedCategory === 6 ? systemMonitor.getIntruderPhotos() : []
+
+                                                Rectangle {
+                                                    width: 140
+                                                    height: 120
+                                                    radius: 8
+                                                    color: "#0a0a1a"
+                                                    border.color: "#ef4444"
+                                                    border.width: 1
+
+                                                    Column {
+                                                        anchors.fill: parent
+                                                        anchors.margins: 4
+                                                        spacing: 2
+
+                                                        Image {
+                                                            width: parent.width
+                                                            height: parent.height - 20
+                                                            source: "file://" + modelData.path
+                                                            fillMode: Image.PreserveAspectFit
+                                                        }
+
+                                                        Text {
+                                                            text: modelData.timestamp || ""
+                                                            color: "#ef4444"
+                                                            font.pixelSize: 9
+                                                            anchors.horizontalCenter: parent.horizontalCenter
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        Button {
+                                            width: 200
+                                            height: 36
+                                            background: Rectangle {
+                                                radius: 8
+                                                color: parent.hovered ? "#ef4444" : "#dc2626"
+                                            }
+                                            contentItem: Text {
+                                                text: "🗑  Alle Fotos löschen"
+                                                color: "#ffffff"
+                                                font.pixelSize: 13
+                                                horizontalAlignment: Text.AlignHCenter
+                                                verticalAlignment: Text.AlignVCenter
+                                            }
+                                            onClicked: {
+                                                systemMonitor.clearIntruderPhotos()
+                                                intruderRepeater.model = []
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -2817,6 +3105,194 @@ ApplicationWindow {
                     }
                 }
             }
+        }
+    }
+
+    // ==================== LOCK SCREEN ====================
+    Rectangle {
+        id: lockScreen
+        anchors.fill: parent
+        visible: screenLocked
+        z: 9999
+        color: "#000000"
+
+        // Background gradient
+        Rectangle {
+            anchors.fill: parent
+            gradient: Gradient {
+                GradientStop { position: 0.0; color: "#0a0a1a" }
+                GradientStop { position: 0.5; color: "#1a1a3e" }
+                GradientStop { position: 1.0; color: "#0a0a1a" }
+            }
+        }
+
+        // Face auth connection
+        Connections {
+            target: systemMonitor
+            function onFaceAuthResult(success) {
+                if (success) {
+                    lockStatus = "✓ Erkannt!"
+                    unlockTimer.start()
+                } else {
+                    lockStatus = "Gesicht nicht erkannt"
+                }
+            }
+        }
+
+        Timer {
+            id: unlockTimer
+            interval: 500
+            onTriggered: {
+                screenLocked = false
+                pinInput = ""
+                lockStatus = ""
+            }
+        }
+
+        // Start face auth when locked
+        onVisibleChanged: {
+            if (visible) {
+                pinInput = ""
+                lockStatus = ""
+                if (systemMonitor.hasFaceData()) {
+                    lockStatus = "📷 Schaue in die Kamera..."
+                    systemMonitor.startFaceVerify()
+                }
+            }
+        }
+
+        // Clock
+        Column {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: parent.height * 0.08
+            spacing: 5
+
+            Text {
+                id: lockTime
+                anchors.horizontalCenter: parent.horizontalCenter
+                font.pixelSize: 72
+                font.weight: Font.Light
+                color: "#ffffff"
+                text: Qt.formatTime(new Date(), "HH:mm")
+
+                Timer {
+                    interval: 1000
+                    running: screenLocked
+                    repeat: true
+                    onTriggered: lockTime.text = Qt.formatTime(new Date(), "HH:mm")
+                }
+            }
+
+            Text {
+                anchors.horizontalCenter: parent.horizontalCenter
+                font.pixelSize: 18
+                color: "#aaaacc"
+                text: Qt.formatDate(new Date(), "dddd, d. MMMM yyyy")
+            }
+        }
+
+        // Status text
+        Text {
+            id: statusText
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: parent.height * 0.28
+            font.pixelSize: 18
+            color: lockStatus.indexOf("✓") >= 0 ? "#4ade80" : lockStatus.indexOf("Falsch") >= 0 ? "#ef4444" : "#88aacc"
+            text: lockStatus
+        }
+
+        // PIN display (dots)
+        Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: parent.height * 0.34
+            spacing: 20
+
+            Repeater {
+                model: 4
+                Rectangle {
+                    width: 22
+                    height: 22
+                    radius: 11
+                    color: index < pinInput.length ? "#ffffff" : "transparent"
+                    border.color: "#667788"
+                    border.width: 2
+                }
+            }
+        }
+
+        // PIN Pad
+        Grid {
+            id: pinPad
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.top: parent.top
+            anchors.topMargin: parent.height * 0.42
+            columns: 3
+            spacing: 18
+
+            Repeater {
+                model: ["1","2","3","4","5","6","7","8","9","","0","⌫"]
+
+                Rectangle {
+                    width: 90
+                    height: 90
+                    radius: 45
+                    visible: modelData !== ""
+                    color: pinBtnMouse.pressed ? "#ffffff30" : "#ffffff15"
+                    border.color: "#ffffff30"
+                    border.width: 1
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: modelData
+                        font.pixelSize: modelData === "⌫" ? 28 : 34
+                        font.weight: Font.Light
+                        color: "#ffffff"
+                    }
+
+                    MouseArea {
+                        id: pinBtnMouse
+                        anchors.fill: parent
+                        enabled: modelData !== ""
+                        onClicked: {
+                            if (modelData === "⌫") {
+                                if (pinInput.length > 0)
+                                    pinInput = pinInput.substring(0, pinInput.length - 1)
+                                lockStatus = ""
+                            } else {
+                                if (pinInput.length < 4) {
+                                    pinInput = pinInput + modelData
+                                    if (pinInput.length === 4) {
+                                        if (systemMonitor.verifyPin(pinInput)) {
+                                            lockStatus = "✓ Entsperrt!"
+                                            unlockTimer.start()
+                                        } else {
+                                            lockStatus = "Falscher PIN"
+                                            systemMonitor.captureIntruderPhoto()
+                                            pinInput = ""
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Hover glow
+                    Behavior on color { ColorAnimation { duration: 150 } }
+                }
+            }
+        }
+
+        // Face enroll hint at bottom
+        Text {
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.bottom: parent.bottom
+            anchors.bottomMargin: 30
+            font.pixelSize: 13
+            color: "#556677"
+            text: systemMonitor.hasFaceData() ? "Gesichtserkennung aktiv" : "PIN: Einstellungen → Gesicht einrichten"
         }
     }
 }

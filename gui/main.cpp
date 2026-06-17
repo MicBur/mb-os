@@ -14,6 +14,8 @@
 #include <QVariantList>
 #include <QSet>
 #include <QColor>
+#include <QCryptographicHash>
+#include <QDateTime>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -114,6 +116,108 @@ public:
         QProcess::startDetached("bash", QStringList() << "-c"
             << "sleep 0.3; DISPLAY=:0 xdotool search --name 'MB-OS Desktop Shell' windowlower 2>/dev/null");
     }
+
+    // ===== Lock Screen: PIN + Face Auth =====
+
+    Q_INVOKABLE bool hasPin() {
+        QString pinFile = QDir::homePath() + "/.config/mb-os/pin.hash";
+        return QFile::exists(pinFile);
+    }
+
+    Q_INVOKABLE void setPin(const QString &pin) {
+        QString dir = QDir::homePath() + "/.config/mb-os";
+        QDir().mkpath(dir);
+        QFile f(dir + "/pin.hash");
+        if (f.open(QIODevice::WriteOnly)) {
+            QByteArray hash = QCryptographicHash::hash(pin.toUtf8(), QCryptographicHash::Sha256).toHex();
+            f.write(hash);
+            f.close();
+            qDebug() << "PIN set successfully";
+        }
+    }
+
+    Q_INVOKABLE bool verifyPin(const QString &pin) {
+        QString pinFile = QDir::homePath() + "/.config/mb-os/pin.hash";
+        QFile f(pinFile);
+        if (!f.open(QIODevice::ReadOnly)) return false;
+        QByteArray stored = f.readAll().trimmed();
+        f.close();
+        QByteArray input = QCryptographicHash::hash(pin.toUtf8(), QCryptographicHash::Sha256).toHex();
+        return stored == input;
+    }
+
+    Q_INVOKABLE bool hasFaceData() {
+        QString faceFile = QDir::homePath() + "/.config/mb-os/face.json";
+        return QFile::exists(faceFile);
+    }
+
+    Q_INVOKABLE void startFaceVerify() {
+        // Run face-auth.py verify in background, emit signal when done
+        QProcess *proc = new QProcess(this);
+        connect(proc, QOverload<int, QProcess::ExitStatus>::of(&QProcess::finished),
+                this, [this, proc](int exitCode, QProcess::ExitStatus) {
+            emit faceAuthResult(exitCode == 0);
+            proc->deleteLater();
+        });
+        proc->start("python3", QStringList() << "/usr/local/bin/face-auth.py" << "verify");
+    }
+
+    Q_INVOKABLE void enrollFace() {
+        QProcess::startDetached("bash", QStringList() << "-c"
+            << "DISPLAY=:0 xterm -bg black -fg green -fs 14 -T 'Gesicht registrieren' -e 'python3 /usr/local/bin/face-auth.py enroll; sleep 2'");
+    }
+
+    // Capture intruder photo on wrong PIN
+    Q_INVOKABLE void captureIntruderPhoto() {
+        QString dir = QDir::homePath() + "/.config/mb-os/intruder_photos";
+        QDir().mkpath(dir);
+        QString timestamp = QDateTime::currentDateTime().toString("yyyy-MM-dd_HH-mm-ss");
+        QString path = dir + "/" + timestamp + ".jpg";
+        // Use ffmpeg to capture one frame from webcam
+        QProcess::startDetached("bash", QStringList() << "-c"
+            << QString("ffmpeg -f v4l2 -i /dev/video0 -frames:v 1 -y '%1' 2>/dev/null").arg(path));
+        qDebug() << "Intruder photo captured:" << path;
+    }
+
+    // Get list of intruder photos (newest first)
+    Q_INVOKABLE QVariantList getIntruderPhotos() {
+        QVariantList photos;
+        QString dir = QDir::homePath() + "/.config/mb-os/intruder_photos";
+        QDir d(dir);
+        if (!d.exists()) return photos;
+
+        QStringList files = d.entryList(QStringList() << "*.jpg" << "*.png", QDir::Files, QDir::Time);
+        for (const QString &file : files) {
+            QVariantMap entry;
+            // Parse timestamp from filename: 2026-06-17_20-10-51.jpg
+            QString name = QFileInfo(file).baseName();
+            entry["filename"] = file;
+            entry["path"] = dir + "/" + file;
+            entry["timestamp"] = name.replace("_", " ").replace("-", ":");
+            photos.append(entry);
+            if (photos.size() >= 20) break; // Max 20 entries
+        }
+        return photos;
+    }
+
+    // Clear intruder photos
+    Q_INVOKABLE void clearIntruderPhotos() {
+        QString dir = QDir::homePath() + "/.config/mb-os/intruder_photos";
+        QDir d(dir);
+        if (d.exists()) {
+            for (const QString &f : d.entryList(QDir::Files)) {
+                d.remove(f);
+            }
+        }
+    }
+
+    // Change PIN
+    Q_INVOKABLE bool changePin(const QString &oldPin, const QString &newPin) {
+        if (!verifyPin(oldPin)) return false;
+        setPin(newPin);
+        return true;
+    }
+
 
     Q_INVOKABLE QVariantList getInstalledApps() {
         QVariantList apps;
@@ -330,6 +434,7 @@ signals:
     void brightnessChanged();
     void uiScaleChanged();
     void homeScreenChanged();
+    void faceAuthResult(bool success);
 
 private:
     double m_cpuUsage;
