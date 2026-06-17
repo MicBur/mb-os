@@ -9,6 +9,8 @@ ApplicationWindow {
     visibility: ApplicationWindow.FullScreen
     title: "MB-OS Desktop Shell"
 
+    property bool homeEditMode: false
+
     // Background Image with deep dark premium hues and a soft glow
     background: Image {
         source: "qrc:/assets/wallpaper.png"
@@ -709,7 +711,6 @@ ApplicationWindow {
         width: parent.width
 
         // ===== Android-Style Home Screen =====
-        property bool homeEditMode: false
 
         SwipeView {
             id: homeSwipe
