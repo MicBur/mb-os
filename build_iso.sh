@@ -278,6 +278,8 @@ apt-get install -y --no-install-recommends \
     xdotool \
     xclip \
     xsel \
+    dunst \
+    libnotify-bin \
     whiptail \
     parted \
     dosfstools \

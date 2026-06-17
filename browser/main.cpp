@@ -6,6 +6,25 @@
 #include <QDir>
 #include <QStringList>
 #include <QDebug>
+#include <QProcess>
+#include <QWebEngineNotification>
+#include <QWebEngineProfile>
+
+// Forward web notifications to system notification daemon (dunst)
+void handleNotification(std::unique_ptr<QWebEngineNotification> notification) {
+    QString title = notification->title();
+    QString body = notification->message();
+    QString origin = notification->origin().host();
+    qDebug() << "Web Notification:" << title << body << "from" << origin;
+    // Forward to notify-send (dunst will display it)
+    QProcess::startDetached("notify-send", QStringList()
+        << "-a" << "MB-Browser"
+        << "-u" << "normal"
+        << "-t" << "8000"
+        << title
+        << body);
+    notification->show();
+}
 
 int main(int argc, char *argv[]) {
     // Extension loading
@@ -27,6 +46,9 @@ int main(int argc, char *argv[]) {
     QGuiApplication app(argc, argv);
     app.setApplicationName("mb-browser");
     app.setApplicationVersion("1.0");
+
+    // Enable web notifications → forward to dunst via notify-send
+    QWebEngineProfile::defaultProfile()->setNotificationPresenter(&handleNotification);
 
     // Parse --url / -u command line argument
     QCommandLineParser parser;

@@ -209,20 +209,32 @@ public:
     }
 
     Q_INVOKABLE void addToHomeScreen(int page, const QString &name, const QString &icon, const QString &cmd, const QString &clr) {
-        while (m_homePages.size() <= page)
-            m_homePages.append(QVariantList());
+        qDebug() << "addToHomeScreen: page=" << page << "name=" << name << "cmd=" << cmd << "pages.size=" << m_homePages.size();
+        // Ensure we have enough pages
+        while (m_homePages.size() <= page) {
+            QVariantList emptyPage;
+            m_homePages.append(QVariant::fromValue(emptyPage));
+        }
         QVariantMap app;
         app["name"] = name;
         app["icon"] = icon;
         app["cmd"] = cmd;
         app["clr"] = clr;
-        QVariantList pageApps = m_homePages[page].toList();
+        // Get current page apps
+        QVariantList pageApps;
+        if (m_homePages[page].canConvert<QVariantList>()) {
+            pageApps = m_homePages[page].toList();
+        }
         // Avoid duplicates
         for (const auto &a : pageApps) {
-            if (a.toMap()["cmd"] == cmd) return;
+            if (a.toMap()["cmd"].toString() == cmd) {
+                qDebug() << "addToHomeScreen: DUPLICATE, skipping" << cmd;
+                return;
+            }
         }
-        pageApps.append(app);
-        m_homePages[page] = pageApps;
+        pageApps.append(QVariant::fromValue(app));
+        m_homePages[page] = QVariant::fromValue(pageApps);
+        qDebug() << "addToHomeScreen: SUCCESS! pageApps.size=" << pageApps.size();
         saveHomeScreen();
         emit homeScreenChanged();
     }
@@ -597,11 +609,15 @@ private:
             }
         }
         if (m_homePages.isEmpty()) {
-            m_homePages.append(QVariantList()); // At least one page
+            QVariantList emptyPage;
+            m_homePages.append(QVariant::fromValue(emptyPage)); // At least one page
         }
+        qDebug() << "loadHomeScreen: loaded" << m_homePages.size() << "pages from" << QDir::homePath();
     }
 
     void saveHomeScreen() {
+        QString path = QDir::homePath() + "/.config/mb-os/homescreen.json";
+        qDebug() << "saveHomeScreen: homePath=" << QDir::homePath() << "file=" << path << "pages=" << m_homePages.size();
         QDir().mkpath(QDir::homePath() + "/.config/mb-os");
         QJsonObject root;
         QJsonArray pages;
@@ -614,10 +630,14 @@ private:
             pages.append(pageArr);
         }
         root["pages"] = pages;
-        QFile f(QDir::homePath() + "/.config/mb-os/homescreen.json");
+        QFile f(path);
         if (f.open(QIODevice::WriteOnly)) {
-            f.write(QJsonDocument(root).toJson(QJsonDocument::Indented));
+            QByteArray data = QJsonDocument(root).toJson(QJsonDocument::Indented);
+            f.write(data);
             f.close();
+            qDebug() << "saveHomeScreen: WRITTEN" << data.size() << "bytes to" << path;
+        } else {
+            qDebug() << "saveHomeScreen: FAILED to open" << path << f.errorString();
         }
     }
 };

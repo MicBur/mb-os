@@ -795,10 +795,12 @@ ApplicationWindow {
             anchors.topMargin: currentHomePage === 0 ? 150 : 30
             anchors.bottom: parent.bottom
             anchors.bottomMargin: 140
-            anchors.horizontalCenter: parent.horizontalCenter
-            width: Math.min(parent.width - 40, cellWidth * 4)
-            cellWidth: 110 * systemMonitor.uiScale
-            cellHeight: 110 * systemMonitor.uiScale
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.leftMargin: 10
+            anchors.rightMargin: 10
+            cellWidth: Math.max(90, Math.floor((width) / Math.floor(width / (100 * systemMonitor.uiScale))))
+            cellHeight: 105 * systemMonitor.uiScale
             clip: true
 
             model: ListModel { id: homeGridModel }

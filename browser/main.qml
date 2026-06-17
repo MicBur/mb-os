@@ -193,6 +193,50 @@ ApplicationWindow {
         profile: customProfile
         url: typeof startUrl !== "undefined" ? startUrl : "https://duckduckgo.com"
 
+        // Auto-grant notification permissions for all sites
+        onFeaturePermissionRequested: function(securityOrigin, feature) {
+            if (feature === WebEngineView.Notifications) {
+                console.log("Notification permission granted for: " + securityOrigin);
+                webView.grantFeaturePermission(securityOrigin, feature, true);
+            } else if (feature === WebEngineView.MediaAudioCapture ||
+                       feature === WebEngineView.MediaVideoCapture ||
+                       feature === WebEngineView.MediaAudioVideoCapture) {
+                webView.grantFeaturePermission(securityOrigin, feature, true);
+            }
+        }
+
+        // Handle new window requests (popups)
+        onNewViewRequested: function(request) {
+            if (request.userInitiated) {
+                webView.url = request.requestedUrl;
+            }
+        }
+
+        // Inject notification bridge script after page load
+        onLoadingChanged: function(loadRequest) {
+            if (loadRequest.status === WebEngineView.LoadSucceededStatus) {
+                // Override browser Notification to also call notify-send
+                webView.runJavaScript("
+                    if (window._mbNotifyPatched === undefined) {
+                        window._mbNotifyPatched = true;
+                        var OrigNotification = window.Notification;
+                        window.Notification = function(title, options) {
+                            var n = new OrigNotification(title, options);
+                            // Use a hidden image to ping our notification forwarder
+                            var img = new Image();
+                            img.src = 'mb-notify://' + encodeURIComponent(title) + '/' + encodeURIComponent(options && options.body ? options.body : '');
+                            return n;
+                        };
+                        window.Notification.permission = 'granted';
+                        window.Notification.requestPermission = function(cb) {
+                            if (cb) cb('granted');
+                            return Promise.resolve('granted');
+                        };
+                    }
+                ");
+            }
+        }
+
         // Loading indicator
         ProgressBar {
             id: loadProgress

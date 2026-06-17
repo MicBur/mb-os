@@ -53,6 +53,47 @@ if [ -f /home/mbuser/.Xresources ]; then
     xrdb -merge /home/mbuser/.Xresources || true
 fi
 
+# Start dunst notification daemon (dark theme matching MB-OS)
+mkdir -p /home/mbuser/.config/dunst
+cat > /home/mbuser/.config/dunst/dunstrc << 'DUNSTCONF'
+[global]
+    monitor = 0
+    follow = mouse
+    width = 350
+    height = 100
+    offset = 20x40
+    origin = top-right
+    transparency = 15
+    frame_color = "#20c2f8"
+    frame_width = 2
+    corner_radius = 12
+    font = Inter 11
+    markup = full
+    format = "<b>%a</b>\n%s\n%b"
+    show_age_threshold = 30
+    idle_threshold = 120
+    icon_position = left
+    max_icon_size = 48
+
+[urgency_low]
+    background = "#0f1118"
+    foreground = "#a0a5c0"
+    timeout = 5
+
+[urgency_normal]
+    background = "#0f1118"
+    foreground = "#e2e8f0"
+    timeout = 8
+
+[urgency_critical]
+    background = "#1a0510"
+    foreground = "#ff4060"
+    frame_color = "#ff4060"
+    timeout = 0
+DUNSTCONF
+chown -R mbuser:mbuser /home/mbuser/.config/dunst
+runuser -u mbuser -- env HOME="/home/mbuser" DISPLAY="$DISPLAY" dunst &
+
 # Start the Openbox window manager in the background as mbuser
 runuser -u mbuser -- env HOME="/home/mbuser" PATH="/usr/local/bin:/usr/bin:/bin" DISPLAY="$DISPLAY" XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" XCURSOR_THEME=DMZ-White XCURSOR_SIZE=24 QML2_IMPORT_PATH="/usr/lib/x86_64-linux-gnu/qt6/qml" QT_PLUGIN_PATH="/usr/lib/x86_64-linux-gnu/qt6/plugins" openbox &
 OPENBOX_PID=$!
