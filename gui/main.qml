@@ -1118,6 +1118,26 @@ ApplicationWindow {
             NumberAnimation { property: "opacity"; from: 1; to: 0; duration: 150 }
         }
 
+        property bool appsLoaded: false
+        onOpened: {
+            if (!appsLoaded) {
+                // Collect existing cmds to avoid duplicates
+                var existingCmds = {};
+                for (var i = 0; i < appModel.count; i++) {
+                    existingCmds[appModel.get(i).cmd] = true;
+                }
+                // Add auto-discovered .desktop apps
+                var installed = systemMonitor.getInstalledApps();
+                for (var j = 0; j < installed.length; j++) {
+                    if (!existingCmds[installed[j].cmd]) {
+                        appModel.append(installed[j]);
+                    }
+                }
+                appsLoaded = true;
+                console.log("App Drawer: loaded " + installed.length + " installed apps");
+            }
+        }
+
         background: Rectangle {
             color: Qt.rgba(0.03, 0.04, 0.08, 0.92)
         }

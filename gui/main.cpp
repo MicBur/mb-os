@@ -11,6 +11,8 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QVariantList>
+#include <QSet>
+#include <QColor>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonArray>
@@ -89,6 +91,73 @@ public:
             QString program = args.takeFirst();
             QProcess::startDetached(program, args);
         }
+    }
+
+    Q_INVOKABLE QVariantList getInstalledApps() {
+        QVariantList apps;
+        QStringList searchPaths = {
+            "/usr/share/applications",
+            QDir::homePath() + "/.local/share/applications"
+        };
+        QSet<QString> seen; // Avoid duplicates by exec
+        for (const auto &path : searchPaths) {
+            QDir dir(path);
+            if (!dir.exists()) continue;
+            for (const auto &entry : dir.entryList({"*.desktop"}, QDir::Files)) {
+                QFile f(dir.absoluteFilePath(entry));
+                if (!f.open(QIODevice::ReadOnly | QIODevice::Text)) continue;
+                QTextStream in(&f);
+                QString name, exec, icon, categories;
+                bool noDisplay = false, inDesktopEntry = false;
+                while (!in.atEnd()) {
+                    QString line = in.readLine().trimmed();
+                    if (line == "[Desktop Entry]") { inDesktopEntry = true; continue; }
+                    if (line.startsWith("[") && line != "[Desktop Entry]") { inDesktopEntry = false; continue; }
+                    if (!inDesktopEntry) continue;
+                    if (line.startsWith("Name=") && name.isEmpty()) name = line.mid(5);
+                    else if (line.startsWith("Exec=")) exec = line.mid(5);
+                    else if (line.startsWith("Icon=")) icon = line.mid(5);
+                    else if (line.startsWith("Categories=")) categories = line.mid(11);
+                    else if (line.startsWith("NoDisplay=true")) noDisplay = true;
+                    else if (line.startsWith("Hidden=true")) noDisplay = true;
+                }
+                f.close();
+                if (noDisplay || name.isEmpty() || exec.isEmpty()) continue;
+                // Clean exec: remove %f %u %F %U etc.
+                exec.remove(QRegularExpression(" %[fFuUdDnNickvm]"));
+                exec = exec.trimmed();
+                if (seen.contains(exec)) continue;
+                seen.insert(exec);
+                // Derive icon text (first 1-2 chars of name)
+                QString iconText = name.left(1).toUpper();
+                if (name.length() > 1) iconText = name.left(2);
+                // Derive color from name hash
+                uint hash = qHash(name);
+                int hue = hash % 360;
+                QString clr = QColor::fromHsl(hue, 180, 140).name();
+                // Category mapping
+                QString cat = "system";
+                if (categories.contains("Development")) cat = "dev";
+                else if (categories.contains("Network") || categories.contains("WebBrowser")) cat = "web";
+                else if (categories.contains("Multimedia") || categories.contains("Audio") || categories.contains("Video")) cat = "media";
+                else if (categories.contains("Settings") || categories.contains("System")) cat = "system";
+                else if (categories.contains("Utility") || categories.contains("Accessories")) cat = "tools";
+                else if (categories.contains("Game")) cat = "games";
+                QVariantMap app;
+                app["name"] = name;
+                app["icon"] = iconText;
+                app["cmd"] = exec;
+                app["clr"] = clr;
+                app["category"] = cat;
+                app["source"] = "desktop"; // Mark as auto-discovered
+                apps.append(app);
+            }
+        }
+        // Sort alphabetically
+        std::sort(apps.begin(), apps.end(), [](const QVariant &a, const QVariant &b) {
+            return a.toMap()["name"].toString().toLower() < b.toMap()["name"].toString().toLower();
+        });
+        return apps;
     }
 
     Q_INVOKABLE void powerOff() {
