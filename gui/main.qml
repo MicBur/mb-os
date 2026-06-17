@@ -12,6 +12,19 @@ ApplicationWindow {
     property bool homeEditMode: false
     property int currentHomePage: 0
 
+    // Deferred home screen add (avoids layout deadlock with popups)
+    Timer {
+        id: deferredHomeAdd
+        interval: 300
+        repeat: false
+        property string pName; property string pIcon; property string pCmd; property string pClr; property int pPage
+        onTriggered: {
+            console.log("DEFERRED ADD: page=" + pPage + " name=" + pName + " cmd=" + pCmd);
+            systemMonitor.addToHomeScreen(pPage, pName, pIcon, pCmd, pClr);
+            mainWorkspace.refreshHomeGrid();
+        }
+    }
+
     // Background Image with deep dark premium hues and a soft glow
     background: Image {
         source: "qrc:/assets/wallpaper.png"
@@ -707,6 +720,7 @@ ApplicationWindow {
 
     // Main Workspace Area
     Item {
+        id: mainWorkspace
         anchors.top: topBar.bottom
         anchors.bottom: parent.bottom
         width: parent.width
@@ -723,17 +737,7 @@ ApplicationWindow {
             }
         }
 
-        // Deferred home screen add (avoids layout deadlock with popups)
-        Timer {
-            id: deferredHomeAdd
-            interval: 200
-            repeat: false
-            property string pName; property string pIcon; property string pCmd; property string pClr; property int pPage
-            onTriggered: {
-                systemMonitor.addToHomeScreen(pPage, pName, pIcon, pCmd, pClr);
-                refreshHomeGrid();
-            }
-        }
+
 
         Component.onCompleted: refreshHomeGrid()
 
