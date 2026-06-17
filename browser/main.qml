@@ -9,13 +9,12 @@ ApplicationWindow {
     height: 800
     title: webView.title ? webView.title : "MB-Browser"
 
-    // Custom WebEngine Profile with persistent storage
+    // Persistent browser profile
     WebEngineProfile {
         id: customProfile
-        storageName: "mb-browser-profile"
+        storageName: "MBBrowser"
+        offTheRecord: false
         persistentCookiesPolicy: WebEngineProfile.ForcePersistentCookies
-        persistentStoragePath: homePath + "/.config/mb-browser/data"
-        cachePath: homePath + "/.config/mb-browser/cache"
         httpUserAgent: "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36"
     }
 

@@ -44,11 +44,26 @@ int main(int argc, char *argv[]) {
 
     QtWebEngineQuick::initialize();
     QGuiApplication app(argc, argv);
+    app.setOrganizationName("MB-OS");
+    app.setOrganizationDomain("mb-os.local");
     app.setApplicationName("mb-browser");
     app.setApplicationVersion("1.0");
 
-    // Enable web notifications → forward to dunst via notify-send
+    // CRITICAL: Set persistent storage paths FIRST, before any other profile access!
+    // Qt WebEngine locks the profile configuration on first use.
+    QString dataPath = QDir::homePath() + "/.config/mb-browser/data";
+    QString cachePath = QDir::homePath() + "/.config/mb-browser/cache";
+    QDir().mkpath(dataPath);
+    QDir().mkpath(cachePath);
+    QWebEngineProfile::defaultProfile()->setPersistentStoragePath(dataPath);
+    QWebEngineProfile::defaultProfile()->setCachePath(cachePath);
+    QWebEngineProfile::defaultProfile()->setPersistentCookiesPolicy(QWebEngineProfile::ForcePersistentCookies);
+    QWebEngineProfile::defaultProfile()->setHttpUserAgent(
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36");
+
+    // Enable web notifications → forward to dunst via notify-send (AFTER storage setup!)
     QWebEngineProfile::defaultProfile()->setNotificationPresenter(&handleNotification);
+    qDebug() << "Browser storage:" << dataPath << "home:" << QDir::homePath();
 
     // Parse --url / -u command line argument
     QCommandLineParser parser;
