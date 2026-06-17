@@ -835,8 +835,10 @@ ApplicationWindow {
                                 aiDrawer.open();
                             } else if (model.cmd === "__antigravity__") {
                                 systemMonitor.launchApp("launch-antigravity");
+                                systemMonitor.lowerShellWindow();
                             } else {
                                 systemMonitor.launchApp(model.cmd);
+                                systemMonitor.lowerShellWindow();
                             }
                         }
                     }

@@ -1297,13 +1297,28 @@ UPD
 # --- launch-whatsapp (smart: focus if running, else start) ---
 sudo tee "$ROOTFS/usr/local/bin/launch-whatsapp" > /dev/null << 'WALAUNCHER'
 #!/bin/bash
-WID=$(DISPLAY=:0 xdotool search --name "WhatsApp" 2>/dev/null | head -1)
-if [ -n "$WID" ]; then
-    DISPLAY=:0 xdotool windowactivate "$WID" 2>/dev/null
-    DISPLAY=:0 xdotool windowfocus "$WID" 2>/dev/null
-    DISPLAY=:0 xdotool windowraise "$WID" 2>/dev/null
+export DISPLAY=:0
+export HOME=/home/mbuser
+
+if pgrep -f 'whatsapp-linux-desktop' > /dev/null 2>&1; then
+    MAINPID=$(pgrep -o -f 'whatsapp-linux-desktop --no-sandbox')
+    BEST=""
+    BEST_SIZE=0
+    for w in $(xdotool search --pid "$MAINPID" 2>/dev/null); do
+        NAME=$(xdotool getwindowname "$w" 2>/dev/null)
+        [ "$NAME" = "whatsapp-linux-desktop" ] && continue
+        GEO=$(xdotool getwindowgeometry "$w" 2>/dev/null | grep -oP '\d+x\d+')
+        W=$(echo "$GEO" | cut -dx -f1)
+        H=$(echo "$GEO" | cut -dx -f2)
+        SIZE=$((W * H))
+        if [ "$SIZE" -gt "$BEST_SIZE" ] 2>/dev/null; then
+            BEST="$w"
+            BEST_SIZE=$SIZE
+        fi
+    done
+    [ -n "$BEST" ] && xdotool windowactivate --sync "$BEST" 2>/dev/null
 else
-    HOME=/home/mbuser DISPLAY=:0 /snap/bin/whatsapp-linux-desktop --no-sandbox &
+    /snap/bin/whatsapp-linux-desktop --no-sandbox &
 fi
 WALAUNCHER
 

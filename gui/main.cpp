@@ -7,6 +7,7 @@
 #include <QDir>
 #include <QTextStream>
 #include <QStringList>
+#include <QStandardPaths>
 #include <QDebug>
 #include <QProcess>
 #include <QRegularExpression>
@@ -90,8 +91,28 @@ public:
         QStringList args = QProcess::splitCommand(command);
         if (!args.isEmpty()) {
             QString program = args.takeFirst();
+            // Check if it's a shell script — run via bash
+            QString fullPath = QStandardPaths::findExecutable(program);
+            if (!fullPath.isEmpty()) {
+                QFile f(fullPath);
+                if (f.open(QIODevice::ReadOnly)) {
+                    QByteArray header = f.read(32);
+                    f.close();
+                    if (header.startsWith("#!/bin/bash") || header.startsWith("#!/bin/sh")) {
+                        args.prepend(fullPath);
+                        QProcess::startDetached("bash", args);
+                        return;
+                    }
+                }
+            }
             QProcess::startDetached(program, args);
         }
+    }
+
+    // Lower the shell window so other apps can appear on top
+    Q_INVOKABLE void lowerShellWindow() {
+        QProcess::startDetached("bash", QStringList() << "-c"
+            << "sleep 0.3; DISPLAY=:0 xdotool search --name 'MB-OS Desktop Shell' windowlower 2>/dev/null");
     }
 
     Q_INVOKABLE QVariantList getInstalledApps() {
